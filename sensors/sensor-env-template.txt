@@ -1,0 +1,16 @@
+# Memory Ring Sensor Configuration
+# Copy to Pi Zero alongside sensor.js
+
+# Your Memory Ring server IP and port
+SERVER_URL=http://192.168.1.100:3141
+
+# The identity ID of the entity that will receive sensory input
+# Find this in your Memory Ring dashboard or identity JSON filename
+IDENTITY_ID=mr-your-identity-id-here
+
+# How often to capture (milliseconds). 30000 = every 30 seconds
+CAPTURE_INTERVAL=30000
+
+# Camera resolution (lower = faster capture + smaller payload)
+RESOLUTION_WIDTH=640
+RESOLUTION_HEIGHT=480

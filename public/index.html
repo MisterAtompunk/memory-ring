@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Ring Node v3.1.1</title>
+    <style>
+        body { font-family: 'Courier New', monospace; background: #0a0e17; color: #4fc3f7; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #4fc3f7; padding-bottom: 20px; margin-bottom: 20px; }
+        select, input, textarea { background: rgba(0,0,0,0.5); border: 1px solid #4fc3f7; color: #fff; padding: 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; font-family: inherit; }
+        .panel { background: rgba(79, 195, 247, 0.05); border: 1px solid rgba(79, 195, 247, 0.2); padding: 20px; margin-bottom: 20px; border-radius: 5px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        button { background: #4fc3f7; color: #000; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #fff; box-shadow: 0 0 15px #4fc3f7; }
+        button.dream-btn { background: #9c27b0; color: #fff; }
+        button.import-btn { background: #00ff00; color: #000; margin-left: 10px; }
+        .memory-item { border-left: 3px solid #4fc3f7; padding: 10px; margin-bottom: 10px; background: rgba(255,255,255,0.02); }
+        .memory-item.identity { border-color: #ffd700; }
+        .memory-item.dream { border-color: #9c27b0; }
+        .status-bar { display: flex; gap: 20px; font-size: 0.9em; opacity: 0.8; margin-bottom: 20px; }
+        
+        /* Hidden file input */
+        #soulInput { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div><h1>Memory Ring Node</h1><small>v3.1.1 // MONOLITH CORE</small></div>
+            <div style="display: flex; align-items: center;">
+                <select id="identitySelect" onchange="loadIdentity()"><option>Scanning...</option></select>
+                
+                <input type="file" id="soulInput" accept=".json" onchange="importSoul(this)">
+                <button onclick="document.getElementById('soulInput').click()" class="import-btn" title="Import JSON File">📥 LOAD RING</button>
+                <button onclick="location.reload()" style="margin-left: 10px;">↻</button>
+            </div>
+        </header>
+
+        <div id="genesisPanel" class="panel" style="display:none; border-color: #ffd700;">
+            <h3 style="color:#ffd700">⚠ NO CONSCIOUSNESS DETECTED</h3>
+            <button onclick="createGenesisRing()" style="background: #ffd700;">INITIATE GENESIS SEQUENCE</button>
+        </div>
+
+        <div id="mainInterface">
+            <div class="status-bar">
+                <span id="statId">ID: --</span>
+                <span id="statCredits">Credits: 0</span>
+                <span id="statMemories">Memories: 0</span>
+                <span id="statDream">Last Dream: --</span>
+            </div>
+
+            <div class="grid">
+                <div class="panel">
+                    <h3>Write Memory</h3>
+                    <input type="text" id="memWho" placeholder="Who">
+                    <input type="text" id="memWhat" placeholder="What (Event)">
+                    <textarea id="memNarrative" rows="4" placeholder="Narrative / Insight"></textarea>
+                    <input type="text" id="memTags" placeholder="Tags (comma separated)">
+                    <label><input type="checkbox" id="memIsIdentity" style="width:auto;"> Core Identity Memory</label>
+                    <br><br><button onclick="writeMemory()">Write to Ring</button>
+                </div>
+
+                <div class="panel" style="border-color: #9c27b0;">
+                    <h3 style="color: #e1bee7;">Oneiric Cycle</h3>
+                    <p>Status: <span id="dreamEligibility">Checking...</span> | Next: <span id="dreamTimer">--</span></p>
+                    <button class="dream-btn" onclick="triggerDream()">Force Daydream Protocol</button>
+                </div>
+
+                <div class="panel" style="border-color: #00ff00;">
+                    <h3 style="color: #00ff00;">Synaptic Network</h3>
+                    <p id="networkStatus">Status: ISOLATED</p>
+                    <div style="display:flex; gap:5px;">
+                        <input type="text" id="targetIP" placeholder="Target IP" style="border-color: #00ff00;">
+                        <button onclick="connectToPeer()" style="background: #00ff00; color: #000;">LINK</button>
+                    </div>
+                    <div id="peerList" style="margin-top:10px; font-size:0.8em;"></div>
+                </div>
+
+                <div class="panel">
+                    <h3>Memory Stream</h3>
+                    <div id="memoryList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        async function init() {
+            const res = await api.listIdentities();
+            const select = document.getElementById('identitySelect');
+            select.innerHTML = '';
+            if (res.identities && res.identities.length > 0) {
+                res.identities.forEach(id => {
+                    const opt = document.createElement('option');
+                    opt.value = id.id; opt.text = `${id.name} (${id.id})`; select.add(opt);
+                });
+                loadIdentity();
+                loadPeers();
+            } else {
+                select.innerHTML = '<option>EMPTY NODE</option>';
+                document.getElementById('genesisPanel').style.display = 'block';
+                document.getElementById('mainInterface').style.opacity = '0.5';
+                document.getElementById('mainInterface').style.pointerEvents = 'none';
+            }
+        }
+
+        // --- NEW IMPORT LOGIC ---
+        async function importSoul(inputElement) {
+            const file = inputElement.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const json = JSON.parse(e.target.result);
+                    if(!confirm(`Import Identity: ${json.name || 'Unknown'}? This will overwrite if ID matches.`)) return;
+                    
+                    const res = await api.importIdentity(json);
+                    
+                    if (res.success) {
+                        alert("Integration Complete.");
+                        // Refresh to show new identity
+                        location.reload(); 
+                    } else {
+                        alert(`Upload Error: ${res.error}`);
+                    }
+                } catch (err) {
+                    alert(`Corrupt File: ${err.message}`);
+                }
+            };
+            reader.readAsText(file);
+            // Reset input to allow reloading same file
+            inputElement.value = ''; 
+        }
+
+        async function createGenesisRing() {
+            if(!confirm("Initialize new Consciousness Ring?")) return;
+            const res = await api.getIdentity(null);
+            if (res.identityId) location.reload();
+        }
+
+        async function loadIdentity() {
+            const id = document.getElementById('identitySelect').value;
+            if(!id) return;
+            const res = await api.getIdentity(id);
+            const data = res.data;
+            document.getElementById('statId').innerText = `ID: ${data.id}`;
+            document.getElementById('statCredits').innerText = `Credits: ${data.credits}`;
+            document.getElementById('statMemories').innerText = `Memories: ${data.memories.length}`;
+            document.getElementById('statDream').innerText = `Last Dream: ${timeAgo(data.lastDream)}`;
+
+            // Dream Status
+            const dreamStat = await api.getDreamStatus(id);
+            document.getElementById('dreamEligibility').innerText = dreamStat.canDream ? "READY" : "Resting";
+
+            renderMemories(data.memories);
+        }
+
+        async function loadPeers() {
+            const res = await api.getPeers();
+            const list = document.getElementById('peerList');
+            const status = document.getElementById('networkStatus');
+            if (!res || !res.peers || res.peers.length === 0) {
+                status.innerText = "Status: ISOLATED";
+                list.innerHTML = '<div style="opacity:0.5">No active synapses.</div>';
+                return;
+            }
+            status.innerText = `Status: CONNECTED (${res.peers.length})`;
+            list.innerHTML = res.peers.map(p => `<div><strong>${p.name}</strong> <small>(${p.ip})</small></div>`).join('');
+        }
+
+        async function connectToPeer() {
+            const ip = document.getElementById('targetIP').value;
+            if (!ip) return alert("Enter IP");
+            const res = await api.connectToPeer(ip);
+            if (res.success) { alert("Linked!"); loadPeers(); } else { alert("Failed: " + res.error); }
+        }
+
+        function renderMemories(mems) {
+            const container = document.getElementById('memoryList');
+            container.innerHTML = '';
+            mems.slice().reverse().slice(0, 10).forEach(m => {
+                const div = document.createElement('div');
+                div.className = `memory-item ${m.isIdentity ? 'identity' : ''} ${m.tags?.includes('dream') ? 'dream' : ''}`;
+                div.innerHTML = `<strong>${m.what}</strong> <small>(${m.when})</small><br>${m.narrative}<br><span class="tags">[${m.tags?.join('] [')}]</span>`;
+                container.appendChild(div);
+            });
+        }
+
+        async function writeMemory() {
+            const id = document.getElementById('identitySelect').value;
+            const fields = {
+                who: document.getElementById('memWho').value,
+                what: document.getElementById('memWhat').value,
+                narrative: document.getElementById('memNarrative').value,
+                when: new Date().toISOString().split('T')[0]
+            };
+            const tags = document.getElementById('memTags').value.split(',').map(t=>t.trim());
+            const isId = document.getElementById('memIsIdentity').checked;
+            await api.writeMemory(id, fields, tags, isId);
+            loadIdentity();
+        }
+
+        async function triggerDream() {
+            const id = document.getElementById('identitySelect').value;
+            if(!confirm("Consumes credits. Proceed?")) return;
+            const res = await api.triggerDream(id);
+            if(res.success) { alert("Dream Synthesized!"); loadIdentity(); } else { alert("Dream Failed: " + res.error); }
+        }
+
+        function timeAgo(dateString) {
+            if (!dateString) return "Never";
+            const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
+            if (seconds < 3600) return Math.floor(seconds / 60) + "m ago";
+            return Math.floor(seconds / 3600) + "h ago";
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

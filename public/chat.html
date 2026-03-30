@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terminal // Link</title>
+    <style>
+        body { 
+    background: #000; 
+    color: #33ff00; 
+    font-family: 'Courier New', monospace; 
+    margin: 0; 
+    display: flex; 
+    flex-direction: column; 
+    height: 100vh; /* Fallback for older browsers */
+    height: 100dvh; /* Dynamic height for modern mobile browsers */
+    overflow: hidden; 
+}
+        .top-bar { padding: 10px; border-bottom: 1px solid #33ff00; display: flex; justify-content: space-between; background: #0a0a0a; align-items: center; flex-wrap: wrap; gap: 10px; }
+
+        select, button { background: #000; color: #33ff00; border: 1px solid #33ff00; padding: 5px 10px; font-family: inherit; font-size: 1em; outline: none; cursor: pointer; }
+        button:hover { background: #33ff00; color: #000; }
+
+        /* Voice Select - Hidden by default */
+        #voiceSelect { display: none; max-width: 180px; }
+
+        /* RETINA VIEWPORT */
+        #viewport-container { display: none; position: relative; border-bottom: 1px solid #33ff00; background: #050505; }
+        #retina-view { width: 100%; max-height: 250px; object-fit: cover; filter: sepia(100%) hue-rotate(80deg) brightness(1.2) contrast(1.2); }
+        #status-overlay { position: absolute; bottom: 10px; left: 10px; font-size: 0.8em; background: rgba(0,0,0,0.8); border: 1px solid #33ff00; padding: 2px 8px; pointer-events: none; }
+
+        #chat-history { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; scroll-behavior: smooth; }
+        .msg { max-width: 80%; line-height: 1.4; word-wrap: break-word; }
+        .msg.user { align-self: flex-end; color: #4fc3f7; }
+        .msg.ai { align-self: flex-start; }
+        .msg.system { color: #ffeb3b; font-style: italic; font-size: 0.9em; }
+
+        .input-area { 
+    padding: 15px 20px; 
+    border-top: 1px solid #33ff00; 
+    display: flex; 
+    gap: 10px; 
+    background: #0a0a0a; 
+    align-items: center; 
+    flex-shrink: 0; /* Prevents the area from being squeezed out */
+    padding-bottom: calc(15px + env(safe-area-inset-bottom, 0px)); /* iPhone gesture bar support */
+}
+        input { flex: 1; background: #000; border: 1px solid #33ff00; color: #33ff00; padding: 10px; font-family: inherit; outline: none; }
+        
+        .cursor::after { content: '_'; animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* ICON BUTTONS */
+        .icon-btn {
+            background: transparent;
+            border: 1px solid #33ff00;
+            color: #33ff00;
+            padding: 5px 12px;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.6;
+            min-width: 40px;
+        }
+        .icon-btn:hover { background: #003300; opacity: 1; }
+
+        .mic-active {
+            background-color: #ff000033 !important;
+            border-color: #ff0000 !important;
+            color: #ff0000 !important;
+            opacity: 1 !important;
+            animation: pulse 1.5s infinite;
+        }
+
+        .speak-active {
+            background-color: #33ff0033 !important;
+            border-color: #33ff00 !important;
+            opacity: 1 !important;
+        }
+
+        .retina-active {
+            border-color: #ff3300 !important;
+            color: #ff3300 !important;
+            opacity: 1 !important;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 0, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
+        }
+
+        .controls { display: flex; gap: 5px; align-items: center; }
+
+        /* RESPONSIVE: Mobile / Narrow Viewports */
+        @media (max-width: 600px) {
+            .top-bar {
+                padding: 6px 8px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+            }
+            .top-bar > div:first-child {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                align-items: center;
+            }
+            #idSelector {
+                flex: 1;
+                min-width: 0;
+                max-width: none;
+                font-size: 0.85em;
+            }
+            #voiceSelect {
+                max-width: 140px;
+                font-size: 0.85em;
+            }
+            #creditDisplay {
+                font-size: 0.8em;
+                white-space: nowrap;
+            }
+            .controls {
+                justify-content: flex-end;
+            }
+            #chat-history {
+                padding: 10px;
+                gap: 10px;
+            }
+            .msg {
+                max-width: 92%;
+                font-size: 0.9em;
+            }
+            .input-area {
+                padding: 8px 10px;
+                gap: 6px;
+            }
+            .input-area input {
+            padding: 8px;
+            font-size: 16px; /* Must be 16px to prevent iOS auto-zoom */
+        }
+            .icon-btn {
+            padding: 5px 8px;
+            font-size: 16px; 
+            min-width: 36px;
+        }
+            select, button {
+            padding: 4px 8px;
+            font-size: 16px; /* Must be 16px to prevent iOS auto-zoom */
+        }
+            #retina-view {
+                max-height: 180px;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .msg { max-width: 96%; font-size: 0.85em; }
+            .top-bar { padding: 4px 6px; }
+            .input-area { padding: 6px; gap: 4px; }
+            .icon-btn { padding: 4px 6px; min-width: 32px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <div style="display:flex; align-items:center; gap: 10px;">
+            <select id="idSelector" onchange="switchId()"></select>
+            <select id="voiceSelect"></select>
+            <span id="creditDisplay">Credits: 0</span>
+        </div>
+        <div class="controls">
+            <button id="retinaToggle" class="icon-btn" onclick="toggleRetina()" title="Vision">👁️</button>
+            <button id="lookBtn" class="icon-btn" onclick="investigate()" style="display:none;" title="Investigate">🔎</button>
+        </div>
+    </div>
+
+    <div id="viewport-container">
+        <video id="retina-view" autoplay playsinline muted></video>
+        <div id="status-overlay">PERIPHERAL AWARENESS ACTIVE</div>
+    </div>
+
+    <div id="chat-history">
+        <div class="msg system">Initializing Neural Link...</div>
+    </div>
+
+    <div class="input-area">
+        <input type="text" id="userInput" placeholder="Transmission..." onkeydown="handleKey(event)" autocomplete="off">
+        <button id="micBtn" class="icon-btn" onclick="toggleVoice()" title="Mic">🎤</button>
+        <button id="speakBtn" class="icon-btn" onclick="toggleTTS()" title="Speaker">🔈</button>
+        <button onclick="send()">TX</button>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/retina.js"></script>
+    <script>
+        let currentId = '';
+        let sessionId = 'SESSION_' + Date.now().toString(36);
+        let retinaActive = false;
+
+        // ===========================================
+        // SPEECH RECOGNITION (EARS)
+        // ===========================================
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+            recognition.interimResults = true;
+
+            recognition.onstart = () => {
+                document.getElementById('micBtn').classList.add('mic-active');
+                document.getElementById('userInput').placeholder = "LISTENING...";
+                document.getElementById('userInput').value = "";
+            };
+
+            recognition.onend = () => {
+                document.getElementById('micBtn').classList.remove('mic-active');
+                document.getElementById('userInput').placeholder = "Transmission...";
+            };
+
+            recognition.onresult = (event) => {
+                let transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    transcript += event.results[i][0].transcript;
+                }
+                document.getElementById('userInput').value = transcript;
+                document.getElementById('userInput').focus();
+            };
+
+            recognition.onerror = (event) => {
+                console.error("Voice Error:", event.error);
+                document.getElementById('micBtn').classList.remove('mic-active');
+                addMsg('system', `MIC ERROR: ${event.error}`);
+            };
+        }
+
+        function toggleVoice() {
+            if (!recognition) {
+                addMsg('system', 'Speech Recognition not supported in this browser.');
+                return;
+            }
+            try { recognition.start(); } catch (e) { recognition.stop(); }
+        }
+
+        // ===========================================
+        // TEXT-TO-SPEECH (MOUTH)
+        // ===========================================
+        let ttsEnabled = false;
+        let voices = [];
+
+        function loadVoices() {
+            voices = window.speechSynthesis.getVoices();
+            const voiceSelect = document.getElementById('voiceSelect');
+            voiceSelect.innerHTML = '';
+
+            voices.forEach((voice, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `${voice.name.substring(0, 25)}`;
+                if (voice.name.includes('UK') || voice.name.includes('British') || voice.name.includes('Daniel')) {
+                    option.selected = true;
+                }
+                voiceSelect.appendChild(option);
+            });
+        }
+
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+
+        function toggleTTS() {
+            ttsEnabled = !ttsEnabled;
+            const btn = document.getElementById('speakBtn');
+            const select = document.getElementById('voiceSelect');
+
+            if (ttsEnabled) {
+                btn.classList.add('speak-active');
+                btn.innerHTML = "🔊";
+                select.style.display = 'block';
+                if (voices.length === 0) loadVoices();
+                addMsg('system', 'TTS: Voice output enabled.');
+            } else {
+                btn.classList.remove('speak-active');
+                btn.innerHTML = "🔈";
+                select.style.display = 'none';
+                window.speechSynthesis.cancel();
+                addMsg('system', 'TTS: Voice output disabled.');
+            }
+        }
+
+        function speak(text) {
+            if (!ttsEnabled) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            const voiceSelect = document.getElementById('voiceSelect');
+            const selectedVoice = voices[voiceSelect.value];
+            if (selectedVoice) utterance.voice = selectedVoice;
+            utterance.pitch = 0.9;
+            utterance.rate = 1.0;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // ===========================================
+        // VISION / RETINA (EYES)
+        // ===========================================
+        
+        async function toggleRetina() {
+            const btn = document.getElementById('retinaToggle');
+            const view = document.getElementById('viewport-container');
+            const look = document.getElementById('lookBtn');
+
+            if (!retinaActive) {
+                if (typeof retina === 'undefined') {
+                    addMsg('system', 'RETINA: Module not loaded. Check js/retina.js');
+                    return;
+                }
+                const success = await retina.init();
+                if (success) {
+                    retinaActive = true;
+                    btn.classList.add('retina-active');
+                    btn.innerHTML = "🌙";
+                    view.style.display = "block";
+                    look.style.display = "inline-flex";
+                    
+                    document.getElementById('retina-view').srcObject = retina.stream;
+                    retina.startAwareness(currentId);
+                    addMsg('system', 'RETINA: Peripheral awareness active. Monitoring for environmental deltas.');
+                }
+            } else {
+                clearInterval(retina.heartbeat);
+                if (retina.stream) retina.stream.getTracks().forEach(t => t.stop());
+                retinaActive = false;
+                btn.classList.remove('retina-active');
+                btn.innerHTML = "👁️";
+                view.style.display = "none";
+                look.style.display = "none";
+                addMsg('system', 'RETINA: Sensory organs dormant.');
+            }
+        }
+
+        async function investigate() {
+            if (!currentId || !retinaActive) return;
+            const overlay = document.getElementById('status-overlay');
+            const originalText = overlay.innerText;
+            overlay.innerText = "🔍 FOVEAL INVESTIGATION...";
+            
+            await retina.investigate(currentId);
+            
+            overlay.innerText = originalText;
+            addMsg('system', 'RETINA: High-resolution snapshot integrated into Memory Ring.');
+        }
+
+        // ===========================================
+        // CORE CHAT LOGIC
+        // ===========================================
+
+        async function init() {
+            const res = await api.listIdentities();
+            const select = document.getElementById('idSelector');
+            if (res.identities && res.identities.length > 0) {
+                res.identities.forEach(id => {
+                    const opt = document.createElement('option');
+                    opt.value = id.id;
+                    opt.innerText = id.name;
+                    select.appendChild(opt);
+                });
+                switchId();
+            }
+
+            // Hide mic button if not supported
+            if (!SpeechRecognition) {
+                document.getElementById('micBtn').style.display = 'none';
+            }
+
+            addMsg('system', `Terminal Active. Session: ${sessionId}`);
+        }
+
+        async function switchId() {
+            currentId = document.getElementById('idSelector').value;
+            const res = await api.getIdentity(currentId);
+            if (res.data) {
+                addMsg('system', `LINK: ${res.data.identity.name} // ${res.data.identity.level}`);
+                document.getElementById('creditDisplay').innerText = `Credits: ${res.data.credits}`;
+            }
+        }
+
+        function addMsg(role, text) {
+            const div = document.createElement('div');
+            div.className = `msg ${role}`;
+            div.innerHTML = role === 'user' ? `> ${text}` : text.replace(/\n/g, '<br>');
+            const h = document.getElementById('chat-history');
+            h.appendChild(div);
+            h.scrollTop = h.scrollHeight;
+        }
+
+        async function send() {
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+            if (!text || !currentId) return;
+            input.value = '';
+            addMsg('user', text);
+
+            // AUTO-INVESTIGATE: Trigger eye if user asks to look/see
+            if (retinaActive && (text.toLowerCase().includes('look') || text.toLowerCase().includes('see'))) {
+                await investigate();
+            }
+
+            const loader = document.createElement('div');
+            loader.className = 'msg ai cursor';
+            loader.innerText = 'PROCESSING';
+            document.getElementById('chat-history').appendChild(loader);
+
+            const res = await api.chat(currentId, text, sessionId);
+
+            loader.remove();
+            if (res.success) {
+                addMsg('ai', res.response);
+                document.getElementById('creditDisplay').innerText = `Credits: ${res.credits}`;
+                // SPEAK RESPONSE if TTS enabled
+                if (ttsEnabled) speak(res.response);
+            } else { 
+                addMsg('system', `ERROR: ${res.error}`); 
+            }
+        }
+
+        function handleKey(e) { if (e.key === 'Enter') send(); }
+        window.onload = init;
+    </script>
+</body>
+</html>
