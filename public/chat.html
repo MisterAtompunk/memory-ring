@@ -198,6 +198,7 @@
         let currentId = '';
         let sessionId = 'SESSION_' + Date.now().toString(36);
         let retinaActive = false;
+		let isFocusing = false;
 
         // ===========================================
         // SPEECH RECOGNITION (EARS)
@@ -340,13 +341,14 @@
             }
         }
 
-        async function investigate() {
+        async function investigate(customQuery = null) {
             if (!currentId || !retinaActive) return;
             const overlay = document.getElementById('status-overlay');
             const originalText = overlay.innerText;
-            overlay.innerText = "🔍 FOVEAL INVESTIGATION...";
+            // Update UI to show what the camera is looking for
+            overlay.innerText = customQuery ? `🔍 FOCUSING: ${customQuery.toUpperCase().substring(0, 25)}...` : "🔍 FOVEAL INVESTIGATION...";
             
-            await retina.investigate(currentId);
+            await retina.investigate(currentId, customQuery);
             
             overlay.innerText = originalText;
             addMsg('system', 'RETINA: High-resolution snapshot integrated into Memory Ring.');
@@ -395,16 +397,26 @@
             h.scrollTop = h.scrollHeight;
         }
 
-        async function send() {
+        async function send(autoReplyText = null) {
             const input = document.getElementById('userInput');
-            const text = input.value.trim();
-            if (!text || !currentId) return;
-            input.value = '';
-            addMsg('user', text);
 
-            // AUTO-INVESTIGATE: Trigger eye if user asks to look/see
-            if (retinaActive && (text.toLowerCase().includes('look') || text.toLowerCase().includes('see'))) {
-                await investigate();
+            // Block user input during FOCUS cycle to prevent race conditions.
+            // The async investigate → recursive send chain must complete uninterrupted.
+            if (isFocusing && !autoReplyText) return;
+
+            const text = autoReplyText || input.value.trim();
+            if (!text || !currentId) return;
+            
+            // Only clear input and show user message if it's a real user typing
+            if (!autoReplyText) {
+                input.value = '';
+                addMsg('user', text);
+            }
+
+            // AUTO-INVESTIGATE: Trigger targeted eye if user asks to look/see
+            if (!autoReplyText && retinaActive && (text.toLowerCase().includes('look') || text.toLowerCase().includes('see'))) {
+                // Pass the user's exact message directly to the optic nerve!
+                await investigate(text); 
             }
 
             const loader = document.createElement('div');
@@ -416,15 +428,65 @@
 
             loader.remove();
             if (res.success) {
-                addMsg('ai', res.response);
-                document.getElementById('creditDisplay').innerText = `Credits: ${res.credits}`;
-                // SPEAK RESPONSE if TTS enabled
-                if (ttsEnabled) speak(res.response);
+                // Check for Focus, but ONLY if we aren't already in a focus loop!
+                const focusMatch = res.response.match(/\[FOCUS:\s*"?([^"\]]+)"?\]/i);
+
+                if (focusMatch && !isFocusing) {
+                    isFocusing = true; // Lock the focus loop
+                    input.disabled = true; // Lock user input during FOCUS cycle
+                    const specificQuery = focusMatch[1];
+                    addMsg('system', `OPTIC NERVE: Active Focus requested: "${specificQuery}"`);
+
+                    if (retinaActive) {
+                        await investigate(specificQuery);
+                        
+                        // --- SEMANTIC JITTER (Prompt Randomization) ---
+                        // Injects entropy to break autoregressive loops.
+                        // Each variant explicitly prohibits re-focusing — same antibody
+                        // principle as the IMMUTABLE CORE: prescribe the action AND
+                        // prohibit the escape route.
+                        const timeStamp = new Date().toLocaleTimeString();
+                        const focusResolutions = [
+                            `[OPTICAL UPLINK ESTABLISHED @ ${timeStamp}] Retina focus complete. Your [CURRENT VISUAL FEED] is updated. Analyze it now. Do NOT issue another FOCUS command. State your deduction based purely on the raw telemetry.`,
+                            `<< SENSORY OVERRIDE : ${timeStamp} >> New high-res telemetry has arrived. Your [CURRENT VISUAL FEED] contains the results. Do NOT re-focus. Do not repeat your previous phrasing. What does the new visual evidence reveal to you?`,
+                            `[FOVEAL SCAN COMPLETE | ${timeStamp}] The visual feed is updated with new data. Do NOT issue another FOCUS command. Base your next analytical statement strictly on this newly acquired data.`,
+                            `SYSTEM DIRECTIVE [${timeStamp}]: Ocular scan processed. New data is in the [CURRENT VISUAL FEED]. Do NOT re-focus. Analyze the data and present your findings naturally.`
+                        ];
+                        const randomPrompt = focusResolutions[Math.floor(Math.random() * focusResolutions.length)];
+                        
+                        await send(randomPrompt);
+                        // --------------------------------------------------
+                    } else {
+                        isFocusing = false; // Unlock
+                        input.disabled = false; // Restore user input
+                        addMsg('system', 'ERROR: Retina is dormant. Cannot focus.');
+                        addMsg('ai', res.response.replace(focusMatch[0], '').trim() || "I attempted to focus, but my visual sensors are offline.");
+                    }
+                } else {
+                    isFocusing = false; // Unlock the loop for the next user message
+                    input.disabled = false; // Restore user input
+                    
+                    // If he stubbornly tries to output a [FOCUS] tag anyway, strip it out so it looks clean
+                    let finalOutput = res.response;
+                    if (focusMatch) finalOutput = finalOutput.replace(focusMatch[0], '').trim();
+                    
+                    if (finalOutput) {
+                        addMsg('ai', finalOutput);
+                        document.getElementById('creditDisplay').innerText = `Credits: ${res.credits}`;
+                        if (ttsEnabled) speak(finalOutput);
+                    } else if (focusMatch) {
+                        // Circuit breaker caught a double-FOCUS — visual data was processed
+                        // but Holmes tried to re-focus instead of analyzing.
+                        addMsg('system', 'OPTIC NERVE: Visual data integrated. Awaiting next query.');
+                    }
+                }
             } else { 
+                isFocusing = false;
+                input.disabled = false;
                 addMsg('system', `ERROR: ${res.error}`); 
             }
         }
-
+		
         function handleKey(e) { if (e.key === 'Enter') send(); }
         window.onload = init;
     </script>

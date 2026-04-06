@@ -80,9 +80,17 @@ const retina = {
         }, this.config.sampleRate);
     },
 
-    async perceive(identityId, imageBase64, isHighRes = false) {
+    // Auth header — reads same key as api.js for consistency
+    getHeaders() {
+        const key = localStorage.getItem('mr_api_key') || 'dev-key';
+        return { 'Content-Type': 'application/json', 'x-api-key': key };
+    },
+
+    async perceive(identityId, imageBase64, isHighRes = false, customPrompt = null) {
         // 1. Call the Vision Switchboard on the Server
-        const retinaPrompt = `You are the retina of a persistent entity. Extract what matters for memory, not description.
+        const retinaPrompt = customPrompt 
+            ? `Look closely at this image and answer this specific query accurately: ${customPrompt}. Be concise and factual.`
+            : `You are the retina of a persistent entity. Extract what matters for memory, not description.
         [presence]: who is here
         [activity]: what is happening
         [context]: where/when markers
@@ -93,20 +101,23 @@ const retina = {
         try {
             const visionRes = await fetch('/api/vision', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.getHeaders(),
                 body: JSON.stringify({ image: imageBase64, prompt: retinaPrompt })
             });
             const { digest } = await visionRes.json();
 
             // 2. Post the result to the Sensory Ingestion Port
+            const tags = ["sensory", isHighRes ? "investigation" : "awareness"];
+            if (customPrompt) tags.push("foveal-focus");
+
             await fetch(`/api/sensory/${identityId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.getHeaders(),
                 body: JSON.stringify({
                     who: "Retina",
-                    narrative: digest,
-                    importance: isHighRes ? 2.0 : 1.2,
-                    tags: ["sensory", isHighRes ? "investigation" : "awareness"]
+                    narrative: customPrompt ? `Focus Result for "${customPrompt}": ${digest}` : digest,
+                    importance: customPrompt ? 2.5 : (isHighRes ? 2.0 : 1.2),
+                    tags: tags
                 })
             });
 
@@ -116,9 +127,9 @@ const retina = {
         }
     },
 
-    async investigate(identityId) {
-        console.log("🔎 Initiating Foveal Investigation...");
+    async investigate(identityId, customPrompt = null) {
+        console.log("🔍 Initiating Foveal Investigation...");
         const highResImage = await this.capture(this.config.highRes.width, this.config.highRes.height);
-        return await this.perceive(identityId, highResImage, true);
+        return await this.perceive(identityId, highResImage, true, customPrompt);
     }
 };

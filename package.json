@@ -1,6 +1,6 @@
 {
   "name": "memory-ring-node",
-  "version": "3.2",
+  "version": "3.3",
   "description": "Sovereign Identity Architecture for Local LLMs",
   "main": "server.js",
   "scripts": {
@@ -12,6 +12,7 @@
     "cors": "^2.8.5",
     "helmet": "^7.1.0",
     "body-parser": "^1.20.2",
+    "express-rate-limit": "^7.1.5",
     "openai": "^4.24.1",
     "dotenv": "^16.3.1"
   },

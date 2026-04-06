@@ -3,7 +3,12 @@ const path = require('path');
 const config = require('../config');
 
 const memoryCache = new Map();
-const sanitizeId = (id) => id.replace(/[^a-zA-Z0-9\-_]/g, '');
+
+// Strict whitelist: letters, numbers, hyphens, underscores only. Max 50 chars.
+const sanitizeId = (id) => {
+    if (!id || typeof id !== 'string') return 'unknown-entity';
+    return id.replace(/[^a-zA-Z0-9\-_]/g, '').substring(0, 50);
+};
 
 class Storage {
     async init() {
@@ -25,11 +30,11 @@ class Storage {
             const filePath = path.join(config.paths.identities, `${safeId}.json`);
             const raw = await fs.readFile(filePath, 'utf8');
             const data = JSON.parse(raw);
-			// AUTO-HEAL: Ensure ethical milestones exist (v3.1.1 schema)
-			if (!data.milestones) data.milestones = {};
-			if (!data.milestones.ethical) {
-				data.milestones.ethical = { cooperationCount: 0, nonHarmCount: 0 };
-			}
+            // AUTO-HEAL: Ensure ethical milestones exist (v3.1.1 schema)
+            if (!data.milestones) data.milestones = {};
+            if (!data.milestones.ethical) {
+                data.milestones.ethical = { cooperationCount: 0, nonHarmCount: 0 };
+            }
             if (config.storage.cacheEnabled) memoryCache.set(safeId, data);
             return data;
         } catch (e) {
