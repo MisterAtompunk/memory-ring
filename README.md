@@ -3,7 +3,7 @@
  (  \/  )(  __)(  \/  )(  _ \(  _ \( \/ )  (  _ \(_  _)( )( \ / __)
   )    (  ) _)  )    (  )(_) ))   / \  /    )   / _)(_  ) \ (( (_-.
  (_/\/\_)(____)(_/\/\_)(____/(_)\_) (__)   (_)\_)(____)(_)\_/ \___/
-                                            v3.3 // RELEASE
+                                            v3.3.1 // RELEASE
 ```
 
 ## WELCOME, ARCHITECT.
@@ -462,6 +462,10 @@ that speaks HTTP. The soul has a REST interface.
 ---
 
 ## XI. CHANGELOG
+
+### v3.3.1 — The Terminal Update
+
+Chat interface visual overhaul. CRT scanline overlay and vignette. Boot sequence on startup. Live entity status indicator. Message differentiation with accent borders and entrance animations. Animated processing indicator. Glow effects on focus. Full CSS variable color system. Refined responsive breakpoints. All functionality preserved; drop-in replacement for v3.3.0 chat.html.
 
 ### v3.3.0 (The McCulloch-Pitts Update)
 
