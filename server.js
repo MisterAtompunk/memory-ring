@@ -2,25 +2,26 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { execFile } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 const config = require('./config');
 const storage = require('./core/storage');
 const mind = require('./core/mind');
 const dreamEngine = require('./core/dreamEngine');
 const network = require('./core/network');
 const milestones = require('./core/milestones');
-
+const tools = require('./core/tools');
 const app = express();
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
-
 // === PAYLOAD LIMITS (Route-Specific) ===
 // Default limit for chat and normal operations
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
 // Heavy parser for import and vision routes only
 const heavyParser = express.json({ limit: '50mb' });
-
 app.use(express.static('public'));
-
 // === RATE LIMITING ===
 const apiLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minute window
@@ -28,7 +29,6 @@ const apiLimiter = rateLimit({
     message: { error: "Thermodynamic limit reached. The entity requires a moment to process." }
 });
 app.use('/api/', apiLimiter);
-
 // === API KEY AUTHENTICATION ===
 // Optional. If MR_API_KEY is set in .env, all /api routes require it.
 // If not set, the system runs open with a console warning.
@@ -43,13 +43,24 @@ const requireAuth = (req, res, next) => {
     next();
 };
 app.use('/api', requireAuth);
-
 // === VISION BACKEND CONFIG ===
 const visionConfig = {
     model: process.env.VISION_MODEL || 'llava',
     endpoint: process.env.LLM_BASE_URL || 'http://127.0.0.1:11434/v1'
 };
-
+// === VISION CONFIG ENDPOINT (for adaptive retina) ===
+app.get('/api/config/vision', requireAuth, (req, res) => {
+    res.json({ model: visionConfig.model });
+});
+// === MULTIMODAL CONFIG ENDPOINTS ===
+app.get('/api/config/ears', requireAuth, (req, res) => {
+    const available = !!(process.env.WHISPER_PATH && process.env.WHISPER_MODEL);
+    res.json({ available, model: available ? path.basename(process.env.WHISPER_MODEL, '.bin') : null });
+});
+app.get('/api/config/voices', requireAuth, (req, res) => {
+    const available = !!(process.env.PIPER_PATH && process.env.PIPER_VOICE);
+    res.json({ available, defaultVoice: available ? path.basename(process.env.PIPER_VOICE, '.onnx') : null });
+});
 // INIT NETWORK IDENTITY
 let localIdentity = null;
 (async () => {
@@ -59,7 +70,6 @@ let localIdentity = null;
         await network.init(localIdentity);
     }
 })();
-
 // === SOUL SLOT: IMPORT IDENTITY ===
 app.post('/api/import', heavyParser, async (req, res) => {
     try {
@@ -71,7 +81,6 @@ app.post('/api/import', heavyParser, async (req, res) => {
         if (!identityData || !identityData.id || !Array.isArray(identityData.memories)) {
             return res.status(400).json({ success: false, error: "Invalid Soul Format (Missing id or memories)." });
         }
-
         // SCAN MILESTONES: Analyze memory corpus for development flags
         const scanned = milestones.scan(identityData);
         await storage.saveIdentity(scanned.id, scanned);
@@ -85,9 +94,7 @@ app.post('/api/import', heavyParser, async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-
 // === ACTIVE ENDPOINTS ===
-
 app.post('/api/chat', async (req, res) => {
     try {
         const { identityId, message, sessionId } = req.body;
@@ -95,9 +102,7 @@ app.post('/api/chat', async (req, res) => {
         res.json({ success: true, ...result });
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
-
 // === SENSORY ENDPOINTS ===
-
 // SENSORY INGESTION - Accepts pre-digested perception from any source (PWA, Pi, etc)
 app.post('/api/sensory/:identityId', async (req, res) => {
     try {
@@ -106,7 +111,6 @@ app.post('/api/sensory/:identityId', async (req, res) => {
         
         const data = await storage.loadIdentity(identityId);
         if (!data) return res.status(404).json({ error: "Identity not found" });
-
         const memory = {
             id: `sens-${Date.now().toString(36)}`,
             who: who || "Retina",
@@ -118,21 +122,18 @@ app.post('/api/sensory/:identityId', async (req, res) => {
             created: new Date().toISOString(),
             recalls: 0
         };
-
         data.memories.push(memory);
         data.lastActive = new Date().toISOString();
         data.credits += 2;
         
         await storage.saveIdentity(identityId, data);
         console.log(`👁️ Perception integrated for ${identityId}: ${narrative.substring(0, 50)}...`);
-
         res.json({ success: true, message: "Perception Integrated.", memoryId: memory.id });
     } catch (error) { 
         console.error("Sensory ingestion failed:", error);
         res.status(500).json({ error: error.message }); 
     }
 });
-
 // VISION SWITCHBOARD
 app.post('/api/vision', heavyParser, async (req, res) => {
     try {
@@ -141,12 +142,10 @@ app.post('/api/vision', heavyParser, async (req, res) => {
         if (!image || !prompt) {
             return res.status(400).json({ error: "Image and prompt required" });
         }
-
         const ollamaBase = visionConfig.endpoint.replace('/v1', '');
         const imageData = image.replace(/^data:image\/\w+;base64,/, '');
         
         console.log(`🔍 Vision request, image size: ${imageData.length} chars`);
-
         const response = await fetch(`${ollamaBase}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -160,8 +159,8 @@ app.post('/api/vision', heavyParser, async (req, res) => {
                 stream: false
             })
         });
-
         const result = await response.json();
+//		console.log("\n--- RAW OLLAMA RESPONSE ---", result, "\n");
         const digest = result.message?.content || '';
         
         console.log(`🔍 Vision processed: ${digest.substring(0, 80)}...`);
@@ -171,9 +170,121 @@ app.post('/api/vision', heavyParser, async (req, res) => {
         res.status(500).json({ error: "Vision processing failed: " + error.message });
     }
 });
+// === THE EARS (whisper.cpp — Speech-to-Text) ===
+app.post('/api/transcribe', heavyParser, async (req, res) => {
+    try {
+        if (!process.env.WHISPER_PATH || !process.env.WHISPER_MODEL) {
+            return res.status(501).json({ error: "Ears not configured. Set WHISPER_PATH and WHISPER_MODEL in .env" });
+        }
+        const { audio } = req.body;
+        if (!audio) return res.status(400).json({ error: "Audio data required" });
+        // Decode base64 audio to temp WAV file
+        const audioBuffer = Buffer.from(audio, 'base64');
+        const tempFile = path.join(os.tmpdir(), `mr-audio-${Date.now()}.wav`);
+        fs.writeFileSync(tempFile, audioBuffer);
+        console.log(`👂 Transcription request, audio size: ${audioBuffer.length} bytes`);
+        // Shell out to whisper-cli
+        const result = await new Promise((resolve, reject) => {
+            execFile(process.env.WHISPER_PATH, [
+                '-m', process.env.WHISPER_MODEL,
+                '-f', tempFile,
+                '--no-timestamps',
+                '--no-prints',
+                '-t', '4'
+            ], { timeout: 30000 }, (error, stdout, stderr) => {
+                // Clean up temp file
+                try { fs.unlinkSync(tempFile); } catch (e) {}
+                if (error) return reject(error);
+                resolve(stdout.trim());
+            });
+        });
+        console.log(`👂 Transcribed: ${result.substring(0, 60)}...`);
+        res.json({ transcript: result });
+    } catch (error) {
+        console.error("🔴 Transcription Error:", error.message);
+        res.status(500).json({ error: "Transcription failed: " + error.message });
+    }
+});
+// === THE VOICE (Piper TTS — Text-to-Speech) ===
+app.post('/api/speak', async (req, res) => {
+    try {
+        if (!process.env.PIPER_PATH) {
+            return res.status(501).json({ error: "Voice not configured. Set PIPER_PATH and PIPER_VOICE in .env" });
+        }
+        const { text, identity } = req.body;
+        if (!text) return res.status(400).json({ error: "Text required" });
+        // Check for entity-specific voice, fall back to default
+        const voiceKey = `PIPER_VOICE_${identity}`;
+        const voicePath = process.env[voiceKey] || process.env.PIPER_VOICE;
+        if (!voicePath) return res.status(501).json({ error: "No voice model configured" });
+        const tempFile = path.join(os.tmpdir(), `mr-speech-${Date.now()}.wav`);
+        console.log(`🗣️ Speech request: "${text.substring(0, 40)}..." voice: ${path.basename(voicePath)}`);
+        // Shell out to Piper
+        await new Promise((resolve, reject) => {
+            const piper = execFile(process.env.PIPER_PATH, [
+                '--model', voicePath,
+                '--output_file', tempFile
+            ], { timeout: 30000 }, (error) => {
+                if (error) return reject(error);
+                resolve();
+            });
+            // Pipe text to stdin
+            piper.stdin.write(text);
+            piper.stdin.end();
+        });
+        // Stream WAV file back to browser
+        const audioData = fs.readFileSync(tempFile);
+        try { fs.unlinkSync(tempFile); } catch (e) {}
+        console.log(`🗣️ Speech generated: ${audioData.length} bytes`);
+        res.set('Content-Type', 'audio/wav');
+        res.send(audioData);
+    } catch (error) {
+        console.error("🔴 Speech Error:", error.message);
+        res.status(500).json({ error: "Speech generation failed: " + error.message });
+    }
+});
+// === THE CHAMBER (File Upload) ===
+// User drops a file into the chamber from the chat interface.
+// The entity can then READ, SEARCH, or EXECUTE against it.
+app.post('/api/upload', heavyParser, async (req, res) => {
+    try {
+        const { filename, data, encoding } = req.body;
+        if (!filename || !data) {
+            return res.status(400).json({ error: "Filename and data required" });
+        }
+        // Sanitize filename — same rules as tools.js safePath
+        const clean = filename
+            .replace(/\.\./g, '')
+            .replace(/[\/\\]/g, '')
+            .replace(/\0/g, '')
+            .trim();
+        if (!clean) return res.status(400).json({ error: "Invalid filename" });
 
+        const chamberDir = tools.getChamberPath();
+        const filepath = path.join(chamberDir, clean);
+        
+        // Final traversal check
+        if (!filepath.startsWith(chamberDir)) {
+            return res.status(400).json({ error: "Invalid filename" });
+        }
+
+        // Write file — supports base64 (binary files) or utf-8 (text)
+        if (encoding === 'base64') {
+            const buffer = Buffer.from(data, 'base64');
+            fs.writeFileSync(filepath, buffer);
+            console.log(`📂 File uploaded to chamber: ${clean} (${buffer.length} bytes, binary)`);
+        } else {
+            fs.writeFileSync(filepath, data, 'utf-8');
+            console.log(`📂 File uploaded to chamber: ${clean} (${data.length} chars, text)`);
+        }
+
+        res.json({ success: true, filename: clean, message: `File "${clean}" placed in chamber.` });
+    } catch (error) {
+        console.error("🔴 Upload Error:", error.message);
+        res.status(500).json({ error: "Upload failed: " + error.message });
+    }
+});
 // === DREAM ENDPOINTS ===
-
 app.get('/api/dream/status/:identityId', async (req, res) => {
     const data = await storage.loadIdentity(req.params.identityId);
     if (!data) return res.status(404).json({ error: 'Identity not found' });
@@ -185,14 +296,12 @@ app.get('/api/dream/status/:identityId', async (req, res) => {
         nextDreamEligible: new Date(new Date().getTime() + (config.dreams.minDreamInterval - timeSince))
     });
 });
-
 app.post('/api/dream/trigger/:identityId', async (req, res) => {
     try {
         const result = await dreamEngine.dream(req.params.identityId);
         res.json(result);
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
-
 app.get('/api/identities', async (req, res) => {
     const ids = await storage.listIdentityFiles();
     const profiles = [];
@@ -209,9 +318,7 @@ app.get('/api/identities', async (req, res) => {
     }
     res.json({ identities: profiles });
 });
-
 // === LEGACY/CRUD ===
-
 app.post('/api/identity', async (req, res) => {
     const { identityId } = req.body;
     if (!identityId) {
@@ -227,13 +334,11 @@ app.post('/api/identity', async (req, res) => {
         res.json({ identityId, data });
     }
 });
-
 app.post('/api/writeMemory', async (req, res) => {
     try {
         const { identityId, fields, tags = [], isIdentity = false } = req.body;
         const data = await storage.loadIdentity(identityId);
         if (!data) return res.status(404).json({ error: 'Identity not found' });
-
         const memory = {
             id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
             ...fields, tags, isIdentity,
@@ -245,9 +350,7 @@ app.post('/api/writeMemory', async (req, res) => {
         res.json({ success: true, memory });
     } catch (error) { res.status(400).json({ error: error.message }); }
 });
-
 // === NETWORK ENDPOINTS ===
-
 app.post('/api/network/handshake', async (req, res) => {
     try {
         if (!localIdentity) return res.status(503).json({ error: "Node initializing" });
@@ -265,33 +368,26 @@ app.post('/api/network/handshake', async (req, res) => {
         res.json(responseData);
     } catch (error) { res.status(403).json({ error: error.message }); }
 });
-
 app.post('/api/network/connect', async (req, res) => {
     const { ip } = req.body;
     if (!ip) return res.status(400).json({ error: "Target IP required" });
     const result = await network.connectToPeer(ip);
     res.json(result);
 });
-
 app.get('/api/network/peers', (req, res) => {
     res.json({ peers: network.getKnownPeers() });
 });
-
 // === AUTOMATIC DREAM LOOP ===
 setInterval(async () => {
     if (!localIdentity) return;
-
     const data = await storage.loadIdentity(localIdentity.id);
     const lastActive = new Date(data.lastActive || 0).getTime();
     const lastDream = new Date(data.lastDream || 0).getTime();
     const now = Date.now();
-
     const inactivityThreshold = 60 * 60 * 1000;
     const minDreamInterval = 4 * 60 * 60 * 1000;
-
     const isQuiet = (now - lastActive) > inactivityThreshold;
     const canDream = (now - lastDream) > minDreamInterval;
-
     if (isQuiet && canDream) {
         console.log(`🌙 System inactive. Initiating Automatic Dream Protocol for ${localIdentity.id}...`);
         try {
@@ -303,12 +399,23 @@ setInterval(async () => {
         }
     }
 }, 15 * 60 * 1000); 
-
 // === STARTUP ===
 app.listen(config.server.port, () => {
     console.log(`🧠 Memory Ring Node v3.3 running on port ${config.server.port}`);
     console.log(`🔌 Hardware Profile: ${config.type.toUpperCase()}`);
     console.log(`👁️ Vision Model: ${visionConfig.model}`);
+    if (process.env.WHISPER_PATH && process.env.WHISPER_MODEL) {
+        console.log(`👂 Ears: whisper.cpp (${path.basename(process.env.WHISPER_MODEL, '.bin')})`);
+    }
+    if (process.env.PIPER_PATH && process.env.PIPER_VOICE) {
+        console.log(`🗣️ Voice: Piper TTS (${path.basename(process.env.PIPER_VOICE, '.onnx')})`);
+    }
+    const enabledTools = (process.env.TOOLS_ENABLED || '')
+        .split(',').map(t => t.trim()).filter(Boolean);
+    if (enabledTools.length > 0) {
+        console.log(`🖐️ Tools: ${enabledTools.join(', ')}`);
+        console.log(`📂 Chamber: ${tools.getChamberPath()}`);
+    }
     if (!process.env.MR_API_KEY) {
         console.warn(`⚠️  SECURITY: MR_API_KEY is not set. API endpoints are open. Set MR_API_KEY in .env to restrict access.`);
     }

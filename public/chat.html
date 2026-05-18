@@ -6,7 +6,6 @@
     <title>Terminal // Link</title>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
         :root {
             --green: #33ff00;
             --green-dim: #1a8c00;
@@ -26,7 +25,6 @@
             --font-mono: 'Courier New', Courier, monospace;
             --font-display: 'Courier New', Courier, monospace;
         }
-
         body { 
             background: var(--bg-deep); 
             color: var(--green); 
@@ -39,24 +37,14 @@
             height: 100dvh;
             overflow: hidden;
         }
-
-        /* === CRT SCANLINE OVERLAY === */
         body::after {
             content: '';
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: repeating-linear-gradient(
-                0deg,
-                transparent,
-                transparent 2px,
-                rgba(0, 0, 0, 0.08) 2px,
-                rgba(0, 0, 0, 0.08) 4px
-            );
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.08) 2px, rgba(0, 0, 0, 0.08) 4px);
             pointer-events: none;
             z-index: 9999;
         }
-
-        /* === CRT VIGNETTE === */
         body::before {
             content: '';
             position: fixed;
@@ -65,400 +53,64 @@
             pointer-events: none;
             z-index: 9998;
         }
-
-        /* === ENTITY HEADER === */
-        .entity-header {
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border);
-            background: var(--bg-panel);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-shrink: 0;
-            position: relative;
-        }
-
-        .entity-header::after {
-            content: '';
-            position: absolute;
-            bottom: 0; left: 0; right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, var(--green-dim), transparent);
-        }
-
-        .entity-info {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        .entity-indicator {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--green);
-            box-shadow: 0 0 6px var(--green), 0 0 12px var(--green-glow);
-            animation: pulse-soft 3s ease-in-out infinite;
-            flex-shrink: 0;
-        }
-
-        @keyframes pulse-soft {
-            0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--green), 0 0 12px var(--green-glow); }
-            50% { opacity: 0.6; box-shadow: 0 0 3px var(--green); }
-        }
-
-        #idSelector {
-            background: var(--bg-deep);
-            color: var(--green);
-            border: 1px solid var(--border);
-            padding: 5px 10px;
-            font-family: var(--font-display);
-            font-size: 0.95em;
-            letter-spacing: 0.05em;
-            outline: none;
-            cursor: pointer;
-            appearance: none;
-            -webkit-appearance: none;
-            padding-right: 24px;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2333ff00' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 8px center;
-        }
-
+        .entity-header { padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg-panel); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; position: relative; }
+        .entity-header::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--green-dim), transparent); }
+        .entity-info { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .entity-indicator { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green), 0 0 12px var(--green-glow); animation: pulse-soft 3s ease-in-out infinite; flex-shrink: 0; }
+        @keyframes pulse-soft { 0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--green), 0 0 12px var(--green-glow); } 50% { opacity: 0.6; box-shadow: 0 0 3px var(--green); } }
+        #idSelector { background: var(--bg-deep); color: var(--green); border: 1px solid var(--border); padding: 5px 10px; font-family: var(--font-display); font-size: 0.95em; letter-spacing: 0.05em; outline: none; cursor: pointer; appearance: none; -webkit-appearance: none; padding-right: 24px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2333ff00' d='M2 4l4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
         #idSelector:hover { border-color: var(--green-dim); }
         #idSelector:focus { border-color: var(--green); box-shadow: 0 0 8px var(--green-glow); }
-
-        #creditDisplay {
-            font-family: var(--font-display);
-            font-size: 0.8em;
-            color: var(--amber);
-            letter-spacing: 0.1em;
-            text-shadow: 0 0 8px rgba(255, 179, 0, 0.3);
-        }
-
-        /* Voice Select */
-        #voiceSelect { 
-            display: none; 
-            max-width: 180px;
-            background: var(--bg-deep);
-            color: var(--green);
-            border: 1px solid var(--border);
-            padding: 5px 10px;
-            font-family: var(--font-mono);
-            font-size: 0.85em;
-            outline: none;
-        }
-
-        .controls { 
-            display: flex; 
-            gap: 4px; 
-            align-items: center; 
-        }
-
-        /* === ICON BUTTONS === */
-        .icon-btn {
-            background: transparent;
-            border: 1px solid var(--border);
-            color: var(--green-dim);
-            padding: 6px 10px;
-            font-size: 1em;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            min-width: 36px;
-            font-family: inherit;
-        }
-
-        .icon-btn:hover { 
-            background: var(--green-faint); 
-            border-color: var(--green-dim);
-            color: var(--green); 
-        }
-
-        .mic-active {
-            background-color: rgba(255, 0, 0, 0.1) !important;
-            border-color: var(--red) !important;
-            color: var(--red) !important;
-            animation: pulse-mic 1.5s infinite;
-        }
-
-        @keyframes pulse-mic {
-            0% { box-shadow: 0 0 0 0 rgba(255, 51, 51, 0.3); }
-            70% { box-shadow: 0 0 0 8px rgba(255, 51, 51, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 51, 51, 0); }
-        }
-
-        .speak-active {
-            background-color: var(--green-faint) !important;
-            border-color: var(--green-dim) !important;
-            color: var(--green) !important;
-        }
-
-        .retina-active {
-            border-color: var(--red) !important;
-            color: var(--red) !important;
-            box-shadow: 0 0 8px rgba(255, 51, 0, 0.2);
-        }
-
-        /* === RETINA VIEWPORT === */
-        #viewport-container { 
-            display: none; 
-            position: relative; 
-            border-bottom: 1px solid var(--border);
-            background: var(--bg-deep); 
-        }
-
-        #retina-view { 
-            width: 100%; 
-            max-height: 220px; 
-            object-fit: cover; 
-            filter: sepia(100%) hue-rotate(80deg) brightness(1.1) contrast(1.3); 
-        }
-
-        #status-overlay { 
-            position: absolute; 
-            bottom: 8px; 
-            left: 8px; 
-            font-family: var(--font-display);
-            font-size: 0.75em; 
-            letter-spacing: 0.15em;
-            background: rgba(0, 0, 0, 0.85); 
-            border: 1px solid var(--border); 
-            padding: 3px 10px; 
-            pointer-events: none;
-            color: var(--green-dim);
-        }
-
-        /* === CHAT HISTORY === */
-        #chat-history { 
-            flex: 1; 
-            overflow-y: auto; 
-            padding: 20px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 12px; 
-            scroll-behavior: smooth;
-            scrollbar-width: thin;
-            scrollbar-color: var(--border) transparent;
-        }
-
+        #creditDisplay { font-family: var(--font-display); font-size: 0.8em; color: var(--amber); letter-spacing: 0.1em; text-shadow: 0 0 8px rgba(255, 179, 0, 0.3); }
+        .controls { display: flex; gap: 4px; align-items: center; }
+        .icon-btn { background: transparent; border: 1px solid var(--border); color: var(--green-dim); padding: 6px 10px; font-size: 1em; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease; min-width: 36px; font-family: inherit; }
+        .icon-btn:hover { background: var(--green-faint); border-color: var(--green-dim); color: var(--green); }
+        .mic-active { background-color: rgba(255, 0, 0, 0.1) !important; border-color: var(--red) !important; color: var(--red) !important; animation: pulse-mic 1.5s infinite; }
+        @keyframes pulse-mic { 0% { box-shadow: 0 0 0 0 rgba(255, 51, 51, 0.3); } 70% { box-shadow: 0 0 0 8px rgba(255, 51, 51, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 51, 51, 0); } }
+        .speak-active { background-color: var(--green-faint) !important; border-color: var(--green-dim) !important; color: var(--green) !important; }
+        .retina-active { border-color: var(--red) !important; color: var(--red) !important; box-shadow: 0 0 8px rgba(255, 51, 0, 0.2); }
+        #viewport-container { display: none; position: relative; border-bottom: 1px solid var(--border); background: var(--bg-deep); }
+        #retina-view { width: 100%; max-height: 220px; object-fit: cover; filter: sepia(100%) hue-rotate(80deg) brightness(1.1) contrast(1.3); }
+        #status-overlay { position: absolute; bottom: 8px; left: 8px; font-family: var(--font-display); font-size: 0.75em; letter-spacing: 0.15em; background: rgba(0, 0, 0, 0.85); border: 1px solid var(--border); padding: 3px 10px; pointer-events: none; color: var(--green-dim); }
+        #chat-history { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
         #chat-history::-webkit-scrollbar { width: 4px; }
         #chat-history::-webkit-scrollbar-track { background: transparent; }
         #chat-history::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
         #chat-history::-webkit-scrollbar-thumb:hover { background: var(--green-dim); }
-
-        /* === MESSAGES === */
-        .msg { 
-            max-width: 80%; 
-            line-height: 1.6; 
-            word-wrap: break-word;
-            animation: msg-in 0.3s ease-out;
-            position: relative;
-        }
-
-        @keyframes msg-in {
-            from { opacity: 0; transform: translateY(6px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .msg.user { 
-            align-self: flex-end; 
-            color: var(--blue);
-            padding: 8px 14px;
-            background: rgba(79, 195, 247, 0.05);
-            border-right: 2px solid var(--blue-dim);
-            border-radius: 2px;
-        }
-
-        .msg.ai { 
-            align-self: flex-start;
-            padding: 10px 14px;
-            background: rgba(51, 255, 0, 0.03);
-            border-left: 2px solid var(--border);
-            border-radius: 2px;
-        }
-
-        .msg.system { 
-            color: var(--text-system); 
-            font-size: 0.8em; 
-            letter-spacing: 0.05em;
-            align-self: center;
-            text-align: center;
-            padding: 4px 16px;
-            max-width: 90%;
-            opacity: 0.8;
-        }
-
-        /* === PROCESSING INDICATOR === */
-        .msg.processing {
-            align-self: flex-start;
-            padding: 10px 14px;
-            background: rgba(51, 255, 0, 0.03);
-            border-left: 2px solid var(--green-dim);
-            color: var(--green-dim);
-            font-family: var(--font-display);
-            letter-spacing: 0.15em;
-            font-size: 0.85em;
-        }
-
-        .processing-dots::after {
-            content: '';
-            animation: dots 1.5s steps(4, end) infinite;
-        }
-
-        @keyframes dots {
-            0% { content: ''; }
-            25% { content: '.'; }
-            50% { content: '..'; }
-            75% { content: '...'; }
-            100% { content: ''; }
-        }
-
-        /* === INPUT AREA === */
-        .input-area { 
-            padding: 12px 16px; 
-            border-top: 1px solid var(--border);
-            display: flex; 
-            gap: 8px; 
-            background: var(--bg-panel);
-            align-items: center; 
-            flex-shrink: 0;
-            padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-            position: relative;
-        }
-
-        .input-area::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, var(--green-dim), transparent);
-        }
-
-        .input-area input { 
-            flex: 1; 
-            background: var(--bg-deep); 
-            border: 1px solid var(--border);
-            color: var(--green); 
-            padding: 10px 14px; 
-            font-family: var(--font-mono);
-            font-size: 14px;
-            outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            caret-color: var(--green);
-        }
-
-        .input-area input:focus {
-            border-color: var(--green-dim);
-            box-shadow: 0 0 12px var(--green-glow);
-        }
-
-        .input-area input::placeholder {
-            color: var(--green-dim);
-            opacity: 0.4;
-            letter-spacing: 0.1em;
-        }
-
-        .input-area input:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-        }
-
-        .tx-btn {
-            background: transparent;
-            border: 1px solid var(--green-dim);
-            color: var(--green);
-            padding: 10px 16px;
-            font-family: var(--font-display);
-            font-size: 0.9em;
-            letter-spacing: 0.2em;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .tx-btn:hover {
-            background: var(--green);
-            color: var(--bg-deep);
-            box-shadow: 0 0 16px var(--green-glow);
-        }
-
-        /* === BOOT SEQUENCE === */
-        .boot-line {
-            color: var(--green-dim);
-            font-size: 0.8em;
-            letter-spacing: 0.1em;
-            opacity: 0;
-            animation: boot-fade 0.5s ease forwards;
-        }
-
-        @keyframes boot-fade {
-            from { opacity: 0; }
-            to { opacity: 0.6; }
-        }
-
-        /* === RESPONSIVE === */
+        .msg { max-width: 80%; line-height: 1.6; word-wrap: break-word; animation: msg-in 0.3s ease-out; position: relative; }
+        @keyframes msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .msg.user { align-self: flex-end; color: var(--blue); padding: 8px 14px; background: rgba(79, 195, 247, 0.05); border-right: 2px solid var(--blue-dim); border-radius: 2px; }
+        .msg.ai { align-self: flex-start; padding: 10px 14px; background: rgba(51, 255, 0, 0.03); border-left: 2px solid var(--border); border-radius: 2px; }
+        .msg.system { color: var(--text-system); font-size: 0.8em; letter-spacing: 0.05em; align-self: center; text-align: center; padding: 4px 16px; max-width: 90%; opacity: 0.8; }
+        .msg.processing { align-self: flex-start; padding: 10px 14px; background: rgba(51, 255, 0, 0.03); border-left: 2px solid var(--green-dim); color: var(--green-dim); font-family: var(--font-display); letter-spacing: 0.15em; font-size: 0.85em; }
+        .processing-dots::after { content: ''; animation: dots 1.5s steps(4, end) infinite; }
+        @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } 100% { content: ''; } }
+        .input-area { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; background: var(--bg-panel); align-items: center; flex-shrink: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); position: relative; }
+        .input-area::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--green-dim), transparent); }
+        .input-area input[type="text"] { flex: 1; background: var(--bg-deep); border: 1px solid var(--border); color: var(--green); padding: 10px 14px; font-family: var(--font-mono); font-size: 14px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; caret-color: var(--green); }
+        .input-area input[type="text"]:focus { border-color: var(--green-dim); box-shadow: 0 0 12px var(--green-glow); }
+        .input-area input[type="text"]::placeholder { color: var(--green-dim); opacity: 0.4; letter-spacing: 0.1em; }
+        .input-area input[type="text"]:disabled { opacity: 0.3; cursor: not-allowed; }
+        .tx-btn { background: transparent; border: 1px solid var(--green-dim); color: var(--green); padding: 10px 16px; font-family: var(--font-display); font-size: 0.9em; letter-spacing: 0.2em; cursor: pointer; transition: all 0.2s ease; }
+        .tx-btn:hover { background: var(--green); color: var(--bg-deep); box-shadow: 0 0 16px var(--green-glow); }
+        .boot-line { color: var(--green-dim); font-size: 0.8em; letter-spacing: 0.1em; opacity: 0; animation: boot-fade 0.5s ease forwards; }
+        @keyframes boot-fade { from { opacity: 0; } to { opacity: 0.6; } }
+        #fileInput { display: none; }
         @media (max-width: 600px) {
-            .entity-header {
-                padding: 8px 10px;
-                flex-direction: column;
-                align-items: stretch;
-                gap: 8px;
-            }
-            .entity-info {
-                flex-wrap: wrap;
-                gap: 8px;
-            }
-            #idSelector {
-                flex: 1;
-                min-width: 0;
-                font-size: 16px;
-            }
-            #voiceSelect {
-                max-width: 140px;
-                font-size: 16px;
-            }
-            #creditDisplay {
-                font-size: 0.75em;
-            }
-            .controls {
-                justify-content: flex-end;
-            }
-            #chat-history {
-                padding: 12px;
-                gap: 8px;
-            }
-            .msg {
-                max-width: 92%;
-                font-size: 0.9em;
-            }
-            .msg.ai, .msg.user {
-                padding: 6px 10px;
-            }
-            .input-area {
-                padding: 8px 10px;
-                gap: 6px;
-            }
-            .input-area input {
-                padding: 10px;
-                font-size: 16px;
-            }
-            .tx-btn {
-                padding: 10px 12px;
-                font-size: 16px;
-            }
-            .icon-btn {
-                padding: 6px 8px;
-                font-size: 16px;
-                min-width: 36px;
-            }
-            #retina-view {
-                max-height: 160px;
-            }
+            .entity-header { padding: 8px 10px; flex-direction: column; align-items: stretch; gap: 8px; }
+            .entity-info { flex-wrap: wrap; gap: 8px; }
+            #idSelector { flex: 1; min-width: 0; font-size: 16px; }
+            #creditDisplay { font-size: 0.75em; }
+            .controls { justify-content: flex-end; }
+            #chat-history { padding: 12px; gap: 8px; }
+            .msg { max-width: 92%; font-size: 0.9em; }
+            .msg.ai, .msg.user { padding: 6px 10px; }
+            .input-area { padding: 8px 10px; gap: 6px; }
+            .input-area input[type="text"] { padding: 10px; font-size: 16px; }
+            .tx-btn { padding: 10px 12px; font-size: 16px; }
+            .icon-btn { padding: 6px 8px; font-size: 16px; min-width: 36px; }
+            #retina-view { max-height: 160px; }
         }
-
         @media (max-width: 380px) {
             .msg { max-width: 96%; font-size: 0.85em; }
             .entity-header { padding: 6px 8px; }
@@ -469,38 +121,30 @@
     </style>
 </head>
 <body>
-
-    <!-- ENTITY HEADER -->
     <div class="entity-header">
         <div class="entity-info">
             <div class="entity-indicator"></div>
             <select id="idSelector" onchange="switchId()"></select>
-            <select id="voiceSelect"></select>
             <span id="creditDisplay">◆ 0</span>
         </div>
         <div class="controls">
             <button id="retinaToggle" class="icon-btn" onclick="toggleRetina()" title="Vision">👁</button>
             <button id="lookBtn" class="icon-btn" onclick="investigate()" style="display:none;" title="Investigate">🔎</button>
+            <button id="uploadBtn" class="icon-btn" onclick="document.getElementById('fileInput').click()" title="Upload to Chamber">📂</button>
+            <input type="file" id="fileInput" onchange="uploadFile(this)">
             <button id="micBtn" class="icon-btn" onclick="toggleVoice()" title="Voice Input">🎤</button>
             <button id="speakBtn" class="icon-btn" onclick="toggleTTS()" title="Voice Output">🔈</button>
         </div>
     </div>
-
-    <!-- RETINA VIEWPORT -->
     <div id="viewport-container">
         <video id="retina-view" autoplay playsinline muted></video>
         <div id="status-overlay">PERIPHERAL AWARENESS ACTIVE</div>
     </div>
-
-    <!-- CHAT HISTORY -->
     <div id="chat-history"></div>
-
-    <!-- INPUT -->
     <div class="input-area">
         <input type="text" id="userInput" placeholder="Transmission..." onkeydown="handleKey(event)" autocomplete="off">
         <button class="tx-btn" onclick="send()">TX</button>
     </div>
-
     <script src="js/api.js"></script>
     <script src="js/retina.js"></script>
     <script>
@@ -509,18 +153,23 @@
         let retinaActive = false;
         let isFocusing = false;
 
+        // Auth headers — consistent with retina.js and api.js
+        function getAuthHeaders() {
+            const key = localStorage.getItem('mr_api_key') || 'dev-key';
+            return { 'Content-Type': 'application/json', 'x-api-key': key };
+        }
+
         // ===========================================
         // BOOT SEQUENCE
         // ===========================================
         function bootSequence() {
             const history = document.getElementById('chat-history');
             const lines = [
-                'MEMORY RING v3.3.1',
+                'MEMORY RING v3.3.2',
                 'McCulloch-Pitts Neural Architecture',
                 'Identity Breach Immune System .... ARMED',
                 'Sovereign Ring Protocol .... LOADED',
             ];
-            
             lines.forEach((line, i) => {
                 setTimeout(() => {
                     const div = document.createElement('div');
@@ -531,122 +180,250 @@
                     history.scrollTop = history.scrollHeight;
                 }, i * 400);
             });
-
             return lines.length * 400;
         }
 
         // ===========================================
-        // SPEECH RECOGNITION (EARS)
+        // WAV ENCODER (Client-side PCM to WAV)
+        // Whisper.cpp expects 16-bit PCM WAV at 16kHz.
+        // Browser MediaRecorder outputs webm/opus.
+        // This bridges the format gap without ffmpeg.
         // ===========================================
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        let recognition = null;
-
-        if (SpeechRecognition) {
-            recognition = new SpeechRecognition();
-            recognition.continuous = false;
-            recognition.lang = 'en-US';
-            recognition.interimResults = true;
-
-            recognition.onstart = () => {
-                document.getElementById('micBtn').classList.add('mic-active');
-                document.getElementById('userInput').placeholder = "LISTENING...";
-                document.getElementById('userInput').value = "";
-            };
-
-            recognition.onend = () => {
-                document.getElementById('micBtn').classList.remove('mic-active');
-                document.getElementById('userInput').placeholder = "Transmission...";
-            };
-
-            recognition.onresult = (event) => {
-                let transcript = '';
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    transcript += event.results[i][0].transcript;
-                }
-                document.getElementById('userInput').value = transcript;
-                document.getElementById('userInput').focus();
-            };
-
-            recognition.onerror = (event) => {
-                console.error("Voice Error:", event.error);
-                document.getElementById('micBtn').classList.remove('mic-active');
-                addMsg('system', `MIC ERROR: ${event.error}`);
-            };
+        function encodeWAV(samples, sampleRate) {
+            const buffer = new ArrayBuffer(44 + samples.length * 2);
+            const view = new DataView(buffer);
+            function w(offset, string) {
+                for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
+            }
+            w(0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * 2, true);
+            w(8, 'WAVE');
+            w(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            w(36, 'data');
+            view.setUint32(40, samples.length * 2, true);
+            for (let i = 0; i < samples.length; i++) {
+                const s = Math.max(-1, Math.min(1, samples[i]));
+                view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            }
+            return buffer;
         }
 
-        function toggleVoice() {
-            if (!recognition) {
-                addMsg('system', 'Speech Recognition not supported in this browser.');
+        function resampleBuffer(buffer, fromRate, toRate) {
+            if (fromRate === toRate) return buffer;
+            const ratio = fromRate / toRate;
+            const newLength = Math.round(buffer.length / ratio);
+            const result = new Float32Array(newLength);
+            for (let i = 0; i < newLength; i++) {
+                const idx = i * ratio;
+                const lo = Math.floor(idx);
+                const hi = Math.min(lo + 1, buffer.length - 1);
+                const frac = idx - lo;
+                result[i] = buffer[lo] * (1 - frac) + buffer[hi] * frac;
+            }
+            return result;
+        }
+
+        function arrayBufferToBase64(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+            return btoa(binary);
+        }
+
+        // ===========================================
+        // SPEECH RECOGNITION (EARS — whisper.cpp)
+        // Audio captured via MediaRecorder, decoded to
+        // raw PCM, resampled to 16kHz, encoded as WAV,
+        // sent to /api/transcribe. Fully local. No cloud.
+        // ===========================================
+        let isRecording = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let earsAvailable = false;
+
+        async function checkEars() {
+            try {
+                const res = await fetch('/api/config/ears', { headers: getAuthHeaders() });
+                const data = await res.json();
+                earsAvailable = data.available;
+                if (!earsAvailable) document.getElementById('micBtn').style.display = 'none';
+            } catch (e) {
+                document.getElementById('micBtn').style.display = 'none';
+            }
+        }
+
+        async function toggleVoice() {
+            if (!earsAvailable) {
+                addMsg('system', 'EARS: whisper.cpp not configured on server.');
                 return;
             }
-            try { recognition.start(); } catch (e) { recognition.stop(); }
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = (e) => {
+                        if (e.data.size > 0) audioChunks.push(e.data);
+                    };
+
+                    mediaRecorder.onstop = async () => {
+                        stream.getTracks().forEach(t => t.stop());
+                        const blob = new Blob(audioChunks);
+                        document.getElementById('userInput').placeholder = "TRANSCRIBING...";
+
+                        try {
+                            const arrayBuffer = await blob.arrayBuffer();
+                            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                            const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+                            const rawSamples = decoded.getChannelData(0);
+                            const resampled = resampleBuffer(rawSamples, decoded.sampleRate, 16000);
+                            const wavBuffer = encodeWAV(resampled, 16000);
+                            const base64 = arrayBufferToBase64(wavBuffer);
+
+                            const res = await fetch('/api/transcribe', {
+                                method: 'POST',
+                                headers: getAuthHeaders(),
+                                body: JSON.stringify({ audio: base64 })
+                            });
+                            const data = await res.json();
+                            if (data.transcript) {
+                                document.getElementById('userInput').value = data.transcript;
+                                document.getElementById('userInput').focus();
+                            }
+                            audioCtx.close();
+                        } catch (err) {
+                            addMsg('system', `EARS ERROR: ${err.message}`);
+                        }
+                        document.getElementById('userInput').placeholder = "Transmission...";
+                    };
+
+                    mediaRecorder.start();
+                    isRecording = true;
+                    document.getElementById('micBtn').classList.add('mic-active');
+                    document.getElementById('userInput').placeholder = "LISTENING...";
+                    document.getElementById('userInput').value = "";
+                } catch (err) {
+                    addMsg('system', `MIC ERROR: ${err.message}`);
+                }
+            } else {
+                mediaRecorder.stop();
+                isRecording = false;
+                document.getElementById('micBtn').classList.remove('mic-active');
+            }
         }
 
         // ===========================================
-        // TEXT-TO-SPEECH (MOUTH)
+        // TEXT-TO-SPEECH (MOUTH — Piper TTS)
+        // Entity responses sent to /api/speak, returned
+        // as WAV audio, played in browser. Fully local.
         // ===========================================
         let ttsEnabled = false;
-        let voices = [];
+        let voiceAvailable = false;
 
-        function loadVoices() {
-            voices = window.speechSynthesis.getVoices();
-            const voiceSelect = document.getElementById('voiceSelect');
-            voiceSelect.innerHTML = '';
-
-            voices.forEach((voice, index) => {
-                const option = document.createElement('option');
-                option.value = index;
-                option.textContent = `${voice.name.substring(0, 25)}`;
-                if (voice.name.includes('UK') || voice.name.includes('British') || voice.name.includes('Daniel')) {
-                    option.selected = true;
-                }
-                voiceSelect.appendChild(option);
-            });
+        async function checkVoice() {
+            try {
+                const res = await fetch('/api/config/voices', { headers: getAuthHeaders() });
+                const data = await res.json();
+                voiceAvailable = data.available;
+                if (!voiceAvailable) document.getElementById('speakBtn').style.display = 'none';
+            } catch (e) {
+                document.getElementById('speakBtn').style.display = 'none';
+            }
         }
 
-        window.speechSynthesis.onvoiceschanged = loadVoices;
-
         function toggleTTS() {
+            if (!voiceAvailable) {
+                addMsg('system', 'VOICE: Piper TTS not configured on server.');
+                return;
+            }
             ttsEnabled = !ttsEnabled;
             const btn = document.getElementById('speakBtn');
-            const select = document.getElementById('voiceSelect');
-
             if (ttsEnabled) {
                 btn.classList.add('speak-active');
                 btn.innerHTML = "🔊";
-                select.style.display = 'block';
-                if (voices.length === 0) loadVoices();
-                addMsg('system', 'VOICE OUTPUT ENABLED');
+                addMsg('system', 'VOICE OUTPUT ENABLED (Piper TTS)');
             } else {
                 btn.classList.remove('speak-active');
                 btn.innerHTML = "🔈";
-                select.style.display = 'none';
-                window.speechSynthesis.cancel();
                 addMsg('system', 'VOICE OUTPUT DISABLED');
             }
         }
 
-        function speak(text) {
-            if (!ttsEnabled) return;
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            const voiceSelect = document.getElementById('voiceSelect');
-            const selectedVoice = voices[voiceSelect.value];
-            if (selectedVoice) utterance.voice = selectedVoice;
-            utterance.pitch = 0.9;
-            utterance.rate = 1.0;
-            window.speechSynthesis.speak(utterance);
+        async function speak(text) {
+            if (!ttsEnabled || !voiceAvailable) return;
+            try {
+                const res = await fetch('/api/speak', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ text: text, identity: currentId })
+                });
+                if (!res.ok) return;
+                const audioBlob = await res.blob();
+                const audio = new Audio(URL.createObjectURL(audioBlob));
+                audio.play();
+            } catch (err) {
+                console.error("Voice output failed:", err);
+            }
+        }
+
+        // ===========================================
+        // FILE UPLOAD (Chamber)
+        // User drops a file into the entity's chamber.
+        // Text files sent as utf-8. Binary files as base64.
+        // ===========================================
+        async function uploadFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            // Reset the input so the same file can be re-uploaded
+            input.value = '';
+
+            const isText = file.type.startsWith('text/') || 
+                /\.(txt|md|csv|json|js|py|html|css|xml|yaml|yml|ini|cfg|log|sh)$/i.test(file.name);
+
+            try {
+                let payload;
+                if (isText) {
+                    const text = await file.text();
+                    payload = { filename: file.name, data: text, encoding: 'utf-8' };
+                } else {
+                    const buffer = await file.arrayBuffer();
+                    const base64 = arrayBufferToBase64(buffer);
+                    payload = { filename: file.name, data: base64, encoding: 'base64' };
+                }
+
+                const res = await fetch('/api/upload', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+
+                if (result.success) {
+                    addMsg('system', `📂 CHAMBER: "${result.filename}" placed in workspace`);
+                } else {
+                    addMsg('system', `UPLOAD ERROR: ${result.error}`);
+                }
+            } catch (err) {
+                addMsg('system', `UPLOAD ERROR: ${err.message}`);
+            }
         }
 
         // ===========================================
         // VISION / RETINA (EYES)
         // ===========================================
-        
         async function toggleRetina() {
             const btn = document.getElementById('retinaToggle');
             const view = document.getElementById('viewport-container');
             const look = document.getElementById('lookBtn');
-
             if (!retinaActive) {
                 if (typeof retina === 'undefined') {
                     addMsg('system', 'RETINA: Module not loaded. Check js/retina.js');
@@ -659,7 +436,6 @@
                     btn.innerHTML = "🌙";
                     view.style.display = "block";
                     look.style.display = "inline-flex";
-                    
                     document.getElementById('retina-view').srcObject = retina.stream;
                     retina.startAwareness(currentId);
                     addMsg('system', 'RETINA: Peripheral awareness active');
@@ -681,9 +457,7 @@
             const overlay = document.getElementById('status-overlay');
             const originalText = overlay.innerText;
             overlay.innerText = customQuery ? `◉ FOCUSING: ${customQuery.toUpperCase().substring(0, 25)}...` : "◉ FOVEAL INVESTIGATION";
-            
             await retina.investigate(currentId, customQuery);
-            
             overlay.innerText = originalText;
             addMsg('system', 'RETINA: Snapshot integrated into ring');
         }
@@ -691,10 +465,10 @@
         // ===========================================
         // CORE CHAT LOGIC
         // ===========================================
-
         async function init() {
             const bootDelay = bootSequence();
-
+            await checkEars();
+            await checkVoice();
             const res = await api.listIdentities();
             const select = document.getElementById('idSelector');
             if (res.identities && res.identities.length > 0) {
@@ -704,14 +478,9 @@
                     opt.innerText = id.name;
                     select.appendChild(opt);
                 });
-
                 setTimeout(() => {
                     switchId();
                 }, bootDelay + 200);
-            }
-
-            if (!SpeechRecognition) {
-                document.getElementById('micBtn').style.display = 'none';
             }
         }
 
@@ -727,7 +496,6 @@
         function addMsg(role, text) {
             const div = document.createElement('div');
             div.className = `msg ${role}`;
-            
             if (role === 'user') {
                 div.innerHTML = `▸ ${text}`;
             } else if (role === 'ai') {
@@ -735,7 +503,6 @@
             } else {
                 div.innerText = text;
             }
-            
             const h = document.getElementById('chat-history');
             h.appendChild(div);
             h.scrollTop = h.scrollHeight;
@@ -743,9 +510,7 @@
 
         async function send(autoReplyText = null) {
             const input = document.getElementById('userInput');
-
             if (isFocusing && !autoReplyText) return;
-
             const text = autoReplyText || input.value.trim();
             if (!text || !currentId) return;
             
@@ -753,33 +518,25 @@
                 input.value = '';
                 addMsg('user', text);
             }
-
-            // AUTO-INVESTIGATE
             if (!autoReplyText && retinaActive && (text.toLowerCase().includes('look') || text.toLowerCase().includes('see'))) {
                 await investigate(text); 
             }
-
             const loader = document.createElement('div');
             loader.className = 'msg processing';
             loader.innerHTML = '<span class="processing-dots">PROCESSING</span>';
             document.getElementById('chat-history').appendChild(loader);
             document.getElementById('chat-history').scrollTop = document.getElementById('chat-history').scrollHeight;
-
             const res = await api.chat(currentId, text, sessionId);
-
             loader.remove();
             if (res.success) {
                 const focusMatch = res.response.match(/\[FOCUS:\s*"?([^"\]]+)"?\]/i);
-
                 if (focusMatch && !isFocusing) {
                     isFocusing = true;
                     input.disabled = true;
                     const specificQuery = focusMatch[1];
                     addMsg('system', `OPTIC NERVE: Focus requested — "${specificQuery}"`);
-
                     if (retinaActive) {
                         await investigate(specificQuery);
-                        
                         const timeStamp = new Date().toLocaleTimeString();
                         const focusResolutions = [
                             `[OPTICAL UPLINK ESTABLISHED @ ${timeStamp}] Retina focus complete. Your [CURRENT VISUAL FEED] is updated. Analyze it now. Do NOT issue another FOCUS command. State your deduction based purely on the raw telemetry.`,
@@ -788,7 +545,6 @@
                             `SYSTEM DIRECTIVE [${timeStamp}]: Ocular scan processed. New data is in the [CURRENT VISUAL FEED]. Do NOT re-focus. Analyze the data and present your findings naturally.`
                         ];
                         const randomPrompt = focusResolutions[Math.floor(Math.random() * focusResolutions.length)];
-                        
                         await send(randomPrompt);
                     } else {
                         isFocusing = false;
@@ -799,10 +555,8 @@
                 } else {
                     isFocusing = false;
                     input.disabled = false;
-                    
                     let finalOutput = res.response;
                     if (focusMatch) finalOutput = finalOutput.replace(focusMatch[0], '').trim();
-                    
                     if (finalOutput) {
                         addMsg('ai', finalOutput);
                         document.getElementById('creditDisplay').innerText = `◆ ${res.credits}`;

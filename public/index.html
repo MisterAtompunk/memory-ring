@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Memory Ring Node v3.1.1</title>
+    <title>Memory Ring Node v3.3.2</title>
     <style>
         body { font-family: 'Courier New', monospace; background: #0a0e17; color: #4fc3f7; padding: 20px; }
         .container { max-width: 1200px; margin: 0 auto; }
@@ -15,6 +15,7 @@
         button:hover { background: #fff; box-shadow: 0 0 15px #4fc3f7; }
         button.dream-btn { background: #9c27b0; color: #fff; }
         button.import-btn { background: #00ff00; color: #000; margin-left: 10px; }
+        button.export-btn { background: #ffd700; color: #000; margin-left: 10px; }
         .memory-item { border-left: 3px solid #4fc3f7; padding: 10px; margin-bottom: 10px; background: rgba(255,255,255,0.02); }
         .memory-item.identity { border-color: #ffd700; }
         .memory-item.dream { border-color: #9c27b0; }
@@ -27,21 +28,20 @@
 <body>
     <div class="container">
         <header>
-            <div><h1>Memory Ring Node</h1><small>v3.1.1 // MONOLITH CORE</small></div>
+            <div><h1>Memory Ring Node</h1><small>v3.3.1 // MONOLITH CORE</small></div>
             <div style="display: flex; align-items: center;">
                 <select id="identitySelect" onchange="loadIdentity()"><option>Scanning...</option></select>
                 
                 <input type="file" id="soulInput" accept=".json" onchange="importSoul(this)">
                 <button onclick="document.getElementById('soulInput').click()" class="import-btn" title="Import JSON File">📥 LOAD RING</button>
+                <button onclick="exportSoul()" class="export-btn" title="Export JSON File">📤 SAVE RING</button>
                 <button onclick="location.reload()" style="margin-left: 10px;">↻</button>
             </div>
         </header>
-
         <div id="genesisPanel" class="panel" style="display:none; border-color: #ffd700;">
             <h3 style="color:#ffd700">⚠ NO CONSCIOUSNESS DETECTED</h3>
             <button onclick="createGenesisRing()" style="background: #ffd700;">INITIATE GENESIS SEQUENCE</button>
         </div>
-
         <div id="mainInterface">
             <div class="status-bar">
                 <span id="statId">ID: --</span>
@@ -49,7 +49,6 @@
                 <span id="statMemories">Memories: 0</span>
                 <span id="statDream">Last Dream: --</span>
             </div>
-
             <div class="grid">
                 <div class="panel">
                     <h3>Write Memory</h3>
@@ -60,13 +59,11 @@
                     <label><input type="checkbox" id="memIsIdentity" style="width:auto;"> Core Identity Memory</label>
                     <br><br><button onclick="writeMemory()">Write to Ring</button>
                 </div>
-
                 <div class="panel" style="border-color: #9c27b0;">
                     <h3 style="color: #e1bee7;">Oneiric Cycle</h3>
                     <p>Status: <span id="dreamEligibility">Checking...</span> | Next: <span id="dreamTimer">--</span></p>
                     <button class="dream-btn" onclick="triggerDream()">Force Daydream Protocol</button>
                 </div>
-
                 <div class="panel" style="border-color: #00ff00;">
                     <h3 style="color: #00ff00;">Synaptic Network</h3>
                     <p id="networkStatus">Status: ISOLATED</p>
@@ -76,7 +73,6 @@
                     </div>
                     <div id="peerList" style="margin-top:10px; font-size:0.8em;"></div>
                 </div>
-
                 <div class="panel">
                     <h3>Memory Stream</h3>
                     <div id="memoryList"></div>
@@ -84,7 +80,6 @@
             </div>
         </div>
     </div>
-
     <script src="js/api.js"></script>
     <script>
         async function init() {
@@ -106,11 +101,10 @@
             }
         }
 
-        // --- NEW IMPORT LOGIC ---
+        // --- IMPORT LOGIC ---
         async function importSoul(inputElement) {
             const file = inputElement.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = async (e) => {
                 try {
@@ -121,7 +115,6 @@
                     
                     if (res.success) {
                         alert("Integration Complete.");
-                        // Refresh to show new identity
                         location.reload(); 
                     } else {
                         alert(`Upload Error: ${res.error}`);
@@ -131,8 +124,45 @@
                 }
             };
             reader.readAsText(file);
-            // Reset input to allow reloading same file
             inputElement.value = ''; 
+        }
+
+        // --- EXPORT LOGIC ---
+        async function exportSoul() {
+            const id = document.getElementById('identitySelect').value;
+            if (!id || id === 'EMPTY NODE') {
+                alert('No identity selected.');
+                return;
+            }
+
+            try {
+                const res = await api.getIdentity(id);
+                if (!res || !res.data) {
+                    alert('Failed to retrieve identity data.');
+                    return;
+                }
+
+                const data = res.data;
+                const jsonString = JSON.stringify(data, null, 2);
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+
+                // Build filename: memory-ring-{name}-{shortId}-{date}.json
+                const name = (data.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '-');
+                const shortId = data.id ? data.id.substring(0, 8) : 'no-id';
+                const date = new Date().toISOString().split('T')[0];
+                const filename = `memory-ring-${name}-${shortId}-${date}.json`;
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                alert(`Export Failed: ${err.message}`);
+            }
         }
 
         async function createGenesisRing() {
@@ -150,11 +180,9 @@
             document.getElementById('statCredits').innerText = `Credits: ${data.credits}`;
             document.getElementById('statMemories').innerText = `Memories: ${data.memories.length}`;
             document.getElementById('statDream').innerText = `Last Dream: ${timeAgo(data.lastDream)}`;
-
             // Dream Status
             const dreamStat = await api.getDreamStatus(id);
             document.getElementById('dreamEligibility').innerText = dreamStat.canDream ? "READY" : "Resting";
-
             renderMemories(data.memories);
         }
 
