@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Memory Ring Node v3.3.2</title>
+    <title>Memory Ring Node</title>
     <style>
         body { font-family: 'Courier New', monospace; background: #0a0e17; color: #4fc3f7; padding: 20px; }
         .container { max-width: 1200px; margin: 0 auto; }
@@ -28,7 +28,7 @@
 <body>
     <div class="container">
         <header>
-            <div><h1>Memory Ring Node</h1><small>v3.3.1 // MONOLITH CORE</small></div>
+            <div><h1>Memory Ring Node</h1><small id="mrVersion">// MONOLITH CORE</small></div>
             <div style="display: flex; align-items: center;">
                 <select id="identitySelect" onchange="loadIdentity()"><option>Scanning...</option></select>
                 
@@ -247,5 +247,13 @@
 
         window.onload = init;
     </script>
+<script>
+// Version is fetched, not embedded. Previously the title said v3.3.2 and the
+// header said v3.3.1 — the same page disagreeing with itself.
+fetch('/api/version').then(r => r.json()).then(v => {
+    document.getElementById('mrVersion').textContent = `v${v.version} // MONOLITH CORE`;
+    document.title = `Memory Ring Node v${v.version}`;
+}).catch(() => {});
+</script>
 </body>
 </html>

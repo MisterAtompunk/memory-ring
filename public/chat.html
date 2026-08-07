@@ -78,6 +78,18 @@
         #chat-history::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
         #chat-history::-webkit-scrollbar-thumb:hover { background: var(--green-dim); }
         .msg { max-width: 80%; line-height: 1.6; word-wrap: break-word; animation: msg-in 0.3s ease-out; position: relative; }
+        /* GROUNDING NOTICE — shown, never suppressing the reply.
+           A machine that corrects itself silently cannot be debugged. */
+        .grounding { max-width: 80%; margin-top: -4px; padding: 8px 10px;
+            border-left: 2px solid var(--amber, #d89a2a); background: rgba(216,154,42,0.06);
+            font-size: 0.82em; line-height: 1.5; letter-spacing: 0.02em;
+            animation: msg-in 0.3s ease-out; }
+        .grounding .g-head { color: var(--amber, #d89a2a); letter-spacing: 0.1em; }
+        .grounding .g-row { margin-top: 4px; opacity: 0.85; }
+        .grounding .g-label { display: inline-block; min-width: 74px; opacity: 0.7; }
+        .grounding .g-leak { color: #c98fd6; }
+        .grounding .g-inv  { color: #d87a6a; }
+        .grounding .g-note { margin-top: 6px; opacity: 0.55; font-size: 0.92em; }
         @keyframes msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .msg.user { align-self: flex-end; color: var(--blue); padding: 8px 14px; background: rgba(79, 195, 247, 0.05); border-right: 2px solid var(--blue-dim); border-radius: 2px; }
         .msg.ai { align-self: flex-start; padding: 10px 14px; background: rgba(51, 255, 0, 0.03); border-left: 2px solid var(--border); border-radius: 2px; }
@@ -165,7 +177,7 @@
         function bootSequence() {
             const history = document.getElementById('chat-history');
             const lines = [
-                'MEMORY RING v3.3.2',
+                MR_VERSION_LINE,
                 'McCulloch-Pitts Neural Architecture',
                 'Identity Breach Immune System .... ARMED',
                 'Sovereign Ring Protocol .... LOADED',
@@ -466,6 +478,10 @@
         // CORE CHAT LOGIC
         // ===========================================
         async function init() {
+            // Fetch the version BEFORE the banner renders, or the boot line
+            // shows the bare name. One round trip, and nothing in public/
+            // carries a version literal.
+            await loadVersion();
             const bootDelay = bootSequence();
             await checkEars();
             await checkVoice();
@@ -493,6 +509,42 @@
             }
         }
 
+        // Render the grounding flag beneath a reply. The reply itself is never
+        // altered or withheld — the operator sees both what was said and what
+        // could not be supported by the sensory data.
+        // Version is fetched, never embedded. See config.js.
+        let MR_VERSION_LINE = 'MEMORY RING';
+        async function loadVersion() {
+            try {
+                const r = await fetch('/api/version');
+                const v = await r.json();
+                MR_VERSION_LINE = `MEMORY RING v${v.version} — ${v.codename}`;
+            } catch (e) { /* boot banner degrades to the bare name */ }
+        }
+
+        function addGrounding(g) {
+            if (!g || g.grounded !== false) return;
+            const leaks = [...new Set((g.selfLeak || []))];
+            const inv   = [...new Set((g.claims || []).flatMap(c => c.invented || []))]
+                            .filter(w => !leaks.includes(w));
+            const div = document.createElement('div');
+            div.className = 'grounding';
+            let html = `<span class="g-head">\u26a0 GROUNDING &mdash; ${(g.claims||[]).length} `
+                     + `claim${(g.claims||[]).length === 1 ? '' : 's'} unsupported by sensory data</span>`;
+            if (inv.length)
+                html += `<div class="g-row"><span class="g-label">invented</span>`
+                      + `<span class="g-inv">${inv.slice(0,10).join(' \u00b7 ')}</span></div>`;
+            if (leaks.length) {
+                html += `<div class="g-row"><span class="g-label">self-leak</span>`
+                      + `<span class="g-leak">${leaks.slice(0,10).join(' \u00b7 ')}</span></div>`;
+                html += `<div class="g-note">self-leak: present in the identity block, absent `
+                      + `from the sensory source. Recalled from the wrong section rather than invented.</div>`;
+            }
+            const d = document.getElementById('chat-history');
+            d.appendChild(div); div.innerHTML = html;
+            d.scrollTop = d.scrollHeight;
+        }
+
         function addMsg(role, text) {
             const div = document.createElement('div');
             div.className = `msg ${role}`;
@@ -517,9 +569,25 @@
             if (!autoReplyText) {
                 input.value = '';
                 addMsg('user', text);
+                // Start the shutter clock the moment the operator asks. The
+                // camera will not fire until the model has generated its
+                // [FOCUS: ...] command, and that gap is what we need measured.
+                if (retinaActive && retina.markAsk) retina.markAsk();
             }
-            if (!autoReplyText && retinaActive && (text.toLowerCase().includes('look') || text.toLowerCase().includes('see'))) {
-                await investigate(text); 
+            // A keyword trigger that passes the RAW USER MESSAGE to the vision
+            // model as its prompt. Measured failure: "can you tell me what you
+            // see in my hand?" contains "see", so moondream was handed a
+            // rambling greeting instead of a question, returned nothing, and
+            // that empty result became a measurement rendering "[READING: ]".
+            //
+            // A peripheral refresh is what is wanted here — update the ambient
+            // view so the entity has something current — NOT a foveal
+            // investigation. If a specific question needs asking, the entity
+            // itself issues [FOCUS: "..."], which is a query it composed rather
+            // than one scraped from a keyword.
+            if (!autoReplyText && retinaActive &&
+                (text.toLowerCase().includes('look') || text.toLowerCase().includes('see'))) {
+                await investigate();   // no argument: ambient refresh, not a foveal query
             }
             const loader = document.createElement('div');
             loader.className = 'msg processing';
@@ -559,6 +627,7 @@
                     if (focusMatch) finalOutput = finalOutput.replace(focusMatch[0], '').trim();
                     if (finalOutput) {
                         addMsg('ai', finalOutput);
+                        addGrounding(res.grounding);
                         document.getElementById('creditDisplay').innerText = `◆ ${res.credits}`;
                         if (ttsEnabled) speak(finalOutput);
                     } else if (focusMatch) {
