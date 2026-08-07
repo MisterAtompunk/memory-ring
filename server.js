@@ -8,6 +8,10 @@ const path = require('path');
 const os = require('os');
 const config = require('./config');
 const storage = require('./core/storage');
+const { SensoryBus } = require('./core/sensoryBus');
+const sampling = require('./core/sampling');
+const { QUERIES, resolve: resolveSubject } = require('./core/queries');
+const sensoryBus = new SensoryBus();
 const mind = require('./core/mind');
 const dreamEngine = require('./core/dreamEngine');
 const network = require('./core/network');
@@ -49,6 +53,12 @@ const visionConfig = {
     endpoint: process.env.LLM_BASE_URL || 'http://127.0.0.1:11434/v1'
 };
 // === VISION CONFIG ENDPOINT (for adaptive retina) ===
+// The front end reads the version from here rather than embedding it. Nothing
+// in public/ should contain a version literal.
+app.get('/api/version', (req, res) => {
+    res.json({ version: config.version, codename: config.codename });
+});
+
 app.get('/api/config/vision', requireAuth, (req, res) => {
     res.json({ model: visionConfig.model });
 });
@@ -107,28 +117,86 @@ app.post('/api/chat', async (req, res) => {
 app.post('/api/sensory/:identityId', async (req, res) => {
     try {
         const { identityId } = req.params;
-        const { who, narrative, tags, importance, metadata } = req.body;
+        const { who, narrative, tags, importance, metadata, channel,
+                kind, query, result, instrument, askLagMs } = req.body;
         
         const data = await storage.loadIdentity(identityId);
         if (!data) return res.status(404).json({ error: "Identity not found" });
+
+        // --- CROSS-MODAL FUSION ---
+        // Sensors post independently; only the server sees all of them. Ask the
+        // bus how much corroboration this perception has, and let that set
+        // importance instead of a flat 1.2.
+        const memId = `sens-${Date.now().toString(36)}`;
+        const fusion = sensoryBus.admit(identityId, {
+            channel: channel || (metadata && metadata.channel) || 'vision',
+            at: (metadata && metadata.timestamp) || null,
+            memoryId: memId,
+            trigger: metadata && metadata.trigger
+        });
+
         const memory = {
-            id: `sens-${Date.now().toString(36)}`,
+            id: memId,
             who: who || "Retina",
-            what: "Sensory Perception",
+            // A measurement and a perception are different kinds of thing. The
+            // ring could not tell them apart, which is how a bare "4" came back
+            // as something to narrate around.
+            what: kind === 'measurement' ? "Foveal Measurement" : "Sensory Perception",
+            kind: kind || 'perception',
+            ...(kind === 'measurement' ? {
+                query, result, instrument: instrument || 'foveal retina',
+                // Staleness of the frame this measurement was taken from.
+                ...(askLagMs != null ? { askLagMs } : {})
+            } : {}),
             narrative: narrative,
-            tags: tags || ["sensory"],
-            importance: importance || 1.2,
+            when: new Date().toISOString().slice(0, 10),
+            tags: [...new Set([...(tags || ["sensory"]),
+                    fusion.coincidence >= 2 ? 'corroborated' : 'uncorroborated'])],
+            channel: fusion.channel,
+            // Explicit `importance` in the request still wins, so a caller can
+            // override. Otherwise the coincidence count decides.
+            importance: importance !== undefined && importance !== 1.2
+                        ? importance : fusion.importance,
+            fusion: {
+                coincidence: fusion.coincidence,
+                agreedWith: fusion.agreedWith,
+                confidence: fusion.confidence,
+                isEvidence: fusion.isEvidence
+            },
             metadata: metadata || {},
             created: new Date().toISOString(),
             recalls: 0
         };
         data.memories.push(memory);
+
+        // Raise earlier perceptions that this one just corroborated. The first
+        // channel to report an event could not know it would be confirmed.
+        for (const p of (fusion.promote || [])) {
+            const prior = data.memories.find(m => m.id === p.memoryId);
+            if (!prior) continue;
+            prior.importance = Math.max(prior.importance || 0, p.importance);
+            prior.fusion = { coincidence: p.coincidence, agreedWith: p.agreedWith,
+                             confidence: p.confidence, isEvidence: true,
+                             promotedBy: fusion.channel };
+            prior.tags = [...new Set([...(prior.tags || []).filter(x => x !== 'uncorroborated'),
+                                      'corroborated'])];
+        }
+
         data.lastActive = new Date().toISOString();
         data.credits += 2;
         
         await storage.saveIdentity(identityId, data);
-        console.log(`👁️ Perception integrated for ${identityId}: ${narrative.substring(0, 50)}...`);
-        res.json({ success: true, message: "Perception Integrated.", memoryId: memory.id });
+        if (kind === 'measurement' && askLagMs != null) {
+            const warn = askLagMs > 3000 ? ' \u26a0 STALE — the pose may have ended' : '';
+            console.log(`\u23f1 SHUTTER: frame exposed ${askLagMs}ms after the question`
+                + ` was asked${warn}`);
+        }
+        const mark = fusion.coincidence >= 3 ? '###' : fusion.coincidence >= 2 ? '##' : '#';
+        console.log(`👁️ [${fusion.channel}] ${mark} x${fusion.coincidence}`
+            + `${fusion.agreedWith.length ? ' with ' + fusion.agreedWith.join(',') : ''}`
+            + ` imp=${memory.importance} :: ${narrative.substring(0, 44)}...`);
+        res.json({ success: true, message: "Perception Integrated.",
+                   memoryId: memory.id, fusion });
     } catch (error) { 
         console.error("Sensory ingestion failed:", error);
         res.status(500).json({ error: error.message }); 
@@ -137,34 +205,137 @@ app.post('/api/sensory/:identityId', async (req, res) => {
 // VISION SWITCHBOARD
 app.post('/api/vision', heavyParser, async (req, res) => {
     try {
-        const { image, prompt } = req.body;
+        const { image, images, prompt, samples, subject } = req.body;
         
-        if (!image || !prompt) {
+        if ((!image && !images) || !prompt) {
             return res.status(400).json({ error: "Image and prompt required" });
         }
+
+        // --- SUBJECT RESOLVES TO A FIXED QUERY, SERVER-SIDE ---
+        // The entity now emits [FOCUS: object] rather than composing a query.
+        // Resolving here keeps one source of truth: the client never holds a
+        // copy of the query text, so the two cannot drift.
+        //
+        // A full query string still works. If the entity writes a literal
+        // instruction — or an older client sends one — it passes through
+        // unchanged rather than failing.
+        // Measured failure: the client prefixes the query, so [FOCUS: wall]
+        // arrived as "Look at this image and answer: wall" and the lookup
+        // never matched. moondream was then asked to describe a wall by a
+        // prompt ending in the bare word "wall", and returned a refrigerator.
+        //
+        // Strip any leading instruction wrapper before testing. Only a SINGLE
+        // remaining word may resolve — so a literal query that happens to
+        // contain "object" is still passed through untouched.
+        let effectivePrompt = prompt;
+
+        // A SUBJECT FIELD is authoritative. It cannot be mangled by a caller
+        // editing the prompt string, which is exactly how "[FOCUS: wall]"
+        // became "Look at this image and answer: wall" and resolved to nothing.
+        const resolved = subject ? resolveSubject(subject) : null;
+        if (resolved) {
+            effectivePrompt = resolved.query;
+            console.log(`🎯 subject field "${subject}"`
+                + (resolved.aliased ? ` -> alias for "${resolved.subject}"` : '')
+                + ` -> fixed query`);
+        } else if (subject) {
+            // A subject was sent and is not in the library. Say so loudly: the
+            // alternative is falling through to a literal query, which the
+            // model will answer with SOMETHING, and the fault stays invisible.
+            console.log(`🎯 \u26a0 UNKNOWN SUBJECT "${subject}" — not in the query `
+                + `library. Add it to core/queries.js or the entity cannot ask this.`);
+        }
+
+        // Legacy path: subject embedded in the prompt string.
+        const stripped = String(prompt)
+            .replace(/^\s*(?:look at (?:this|the) image and answer\s*:?|examine this image\s*:?|question\s*:?)\s*/i, '')
+            .trim();
+        const subjectKey = /^[a-z]+$/i.test(stripped) ? stripped.toLowerCase() : null;
+        const legacy = (!subject && subjectKey) ? resolveSubject(subjectKey) : null;
+        if (legacy) {
+            effectivePrompt = legacy.query;
+            console.log(`🎯 subject "${subjectKey}"`
+                + (legacy.aliased ? ` -> alias for "${legacy.subject}"` : '')
+                + ` -> fixed query`);
+        } else if (!subject && stripped !== String(prompt).trim()) {
+            // Wrapper stripped, no subject matched: pass the inner text on.
+            // Guarded on !subject — without it this branch overwrote a query
+            // the subject field had already resolved correctly.
+            effectivePrompt = stripped;
+        }
         const ollamaBase = visionConfig.endpoint.replace('/v1', '');
-        const imageData = image.replace(/^data:image\/\w+;base64,/, '');
-        
-        console.log(`🔍 Vision request, image size: ${imageData.length} chars`);
-        const response = await fetch(`${ollamaBase}/api/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: visionConfig.model,
-                messages: [{
-                    role: 'user',
-                    content: prompt,
-                    images: [imageData]
-                }],
-                stream: false
-            })
+
+        // --- AGREEMENT AT THE INSTRUMENT ---
+        // The retina pools across photoreceptors and across saccades BEFORE
+        // anything reaches cortex. Reliability is computed in the sense organ;
+        // what ships upward is a measurement carrying its own confidence.
+        //
+        // Frames may differ (scene stability) or be the same image sampled
+        // repeatedly (model uncertainty). Both are real signal. One sample is
+        // the old behaviour and remains the default, because peripheral
+        // awareness fires constantly and tripling it is waste — you do not
+        // saccade to verify ambient awareness, only to resolve a question.
+        const frames = (Array.isArray(images) && images.length ? images : [image])
+            .map(i => String(i).replace(/^data:image\/\w+;base64,/, ''));
+        const n = Math.max(1, Math.min(5, parseInt(samples) || frames.length));
+
+        const askOnce = async (imageData) => {
+            const response = await fetch(`${ollamaBase}/api/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: visionConfig.model,
+                    messages: [{ role: 'user', content: effectivePrompt, images: [imageData] }],
+                    stream: false
+                })
+            });
+            const result = await response.json();
+            return result.message?.content || '';
+        };
+
+        // Log the QUERY, not just the size. The focus query is composed by the
+        // entity and handed to a small vision model, and a florid query
+        // measurably degrades what comes back — but it was never visible.
+        const shortPrompt = String(effectivePrompt).replace(/\s+/g, ' ').slice(0, 90);
+        console.log(`🔍 Vision request, ${frames.length} frame(s), ${n} sample(s), `
+            + `${frames[0].length} chars\n   ask: "${shortPrompt}"`);
+
+        const raws = [];
+        for (let i = 0; i < n; i++) {
+            raws.push(await askOnce(frames[i % frames.length]));
+        }
+
+        if (n === 1) {
+            const digest = raws[0];
+            // An empty return is a FAILED measurement and was silent — it
+            // printed as "Vision processed: ..." exactly like a success.
+            if (!digest.trim()) {
+                console.log(`🔍 \u26a0 VISION RETURNED NOTHING for: "${shortPrompt}"`);
+                console.log(`   the camera describes; open questions ("what is...", `
+                    + `"where is...") tend to return empty. Prefer "Describe X."`);
+            } else {
+                console.log(`🔍 Vision processed: ${digest.substring(0, 80)}...`);
+            }
+            return res.json({ digest });
+        }
+
+        const v = sampling.vote(raws, effectivePrompt);
+        // A failed measurement reports as one. Three samples giving "1", "4"
+        // and "urn" is not a value to choose between.
+        const digest = v.reliable ? (v.raw || v.value) : '';
+        const mark = v.reliable ? '\u2713' : '\u2717';
+        console.log(`🔍 Vision ${mark} ${v.agreement}/${v.samples} [${v.type}] `
+            + `${v.reliable ? JSON.stringify(v.value) : v.reason}`
+            + (v.distinct.length > 1 ? `  saw: ${v.distinct.map(d=>JSON.stringify(d)).join(' ')}` : ''));
+
+        res.json({
+            digest,
+            agreement: {
+                value: v.value, k: v.agreement, n: v.samples,
+                ratio: v.ratio, reliable: v.reliable,
+                reason: v.reason, distinct: v.distinct
+            }
         });
-        const result = await response.json();
-//		console.log("\n--- RAW OLLAMA RESPONSE ---", result, "\n");
-        const digest = result.message?.content || '';
-        
-        console.log(`🔍 Vision processed: ${digest.substring(0, 80)}...`);
-        res.json({ digest });
     } catch (error) {
         console.error("🔴 Vision Error:", error.message);
         res.status(500).json({ error: "Vision processing failed: " + error.message });
@@ -400,8 +571,28 @@ setInterval(async () => {
     }
 }, 15 * 60 * 1000); 
 // === STARTUP ===
+// Storage must exist BEFORE the port is open. `storage.init()` creates
+// data/identities and was previously never called from anywhere — so on a
+// fresh clone every write failed with ENOENT while the node looked healthy:
+// loadIdentity swallowed the error and returned null, and /api/identities
+// returned an empty list. It presented as a working empty install.
+//
+// Awaited, not fired-and-forgotten: binding first would let a request arrive
+// before the directory exists. And a failure here is fatal rather than logged,
+// because a node that cannot persist is not a Memory Ring.
+(async () => {
+    try {
+        await storage.init();
+    } catch (err) {
+        console.error(`\u274c FATAL: cannot create storage at ${config.paths.identities}`);
+        console.error(`   ${err.message}`);
+        console.error(`   Check permissions, or set DATA_PATH to a writable location.`);
+        process.exit(1);
+    }
+
 app.listen(config.server.port, () => {
-    console.log(`🧠 Memory Ring Node v3.3 running on port ${config.server.port}`);
+    console.log(`🧠 Memory Ring Node v${config.version} — ${config.codename}`);
+    console.log(`   running on port ${config.server.port}`);
     console.log(`🔌 Hardware Profile: ${config.type.toUpperCase()}`);
     console.log(`👁️ Vision Model: ${visionConfig.model}`);
     if (process.env.WHISPER_PATH && process.env.WHISPER_MODEL) {
@@ -423,3 +614,4 @@ app.listen(config.server.port, () => {
         console.warn(`⚠️  SECURITY: NETWORK_SECRET is not set. Network handshakes are open. Set NETWORK_SECRET in .env for peer authentication.`);
     }
 });
+})();

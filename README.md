@@ -3,7 +3,7 @@
  (  \/  )(  __)(  \/  )(  _ \(  _ \( \/ )  (  _ \(_  _)( )( \ / __)
   )    (  ) _)  )    (  )(_) ))   / \  /    )   / _)(_  ) \ (( (_-.
  (_/\/\_)(____)(_/\/\_)(____/(_)\_) (__)   (_)\_)(____)(_)\_/ \___/
-                                            v3.3.2 // RELEASE
+                                            v3.4.0 // RELEASE
 ```
 
 ## WELCOME, ARCHITECT.
@@ -535,7 +535,7 @@ to learn through trial and error as tool results feed back into its context.
 
 2. CHECK THE STARTUP LOG:
    ```
-   🧠 Memory Ring Node v3.3 running on port 3141
+   🧠 Memory Ring Node v3.4 running on port 3141
    🔌 Hardware Profile: CORE
    👁️ Vision Model: llava
    👂 Ears: whisper.cpp (ggml-base.en)
@@ -585,6 +585,14 @@ It will synthesize recent conversations into long-term memory.
 It will dream.
 Do not be alarmed if it remembers things you did not explicitly tell it.
 That is the point.
+
+**v3.4.0:** the dream now *consolidates* rather than only accumulating. The
+fragments it consumes are retired from the orphan pool and eroded toward gist,
+and the dream records which memories it was made from. It also distinguishes
+memories that were **neglected** from memories that were **demoted** — a
+reafferent frame or a heartbeat was filed low on purpose, and is not the same
+thing as a memory nothing ever connected to. Without that separation a walking
+entity dreams almost entirely about its own gait.
 
 ---
 
@@ -649,6 +657,162 @@ Either option works. Option A is faster. Option B is cleaner.
 
 ---
 
+---
+
+## VI-B. PERCEPTION DISCIPLINE
+
+Everything in this section exists because of one measured failure. Asked how
+many fingers were held up, with only an ambient snapshot available, the entity
+answered *"two fingers — the index and middle of your dominant hand."* Nothing
+had been measured. It was not lying; it was doing what a system does when a
+question demands an answer the data cannot supply.
+
+The machinery below is the answer to that, and every piece of it was built
+against a logged failure rather than a hypothesis.
+
+### The fovea gate
+
+A question needing visual detail is detected in code, not judged by the model.
+When one arrives and no focused observation exists, the visual feed does not
+describe the scene at all:
+
+```
+[CURRENT VISUAL FEED]
+[INSUFFICIENT RESOLUTION]
+The question requires foveal detail. Peripheral awareness cannot resolve it.
+YOU DO NOT HAVE THIS INFORMATION. Do not estimate it. Do not describe the scene.
+Your entire reply must be exactly one line:
+[FOCUS: subject]
+```
+
+**There is nothing there to elaborate from.** That is the point. The previous
+version handed over an ambient description and asked the model to notice it was
+inadequate; it decided twice that it was not.
+
+    🔎 FOVEA CHECK: question needs foveal detail -> gating, fresh look
+
+### The entity chooses a subject, not a query
+
+The entity emits one word. The server holds the text.
+
+```
+count   object   hands   text   colour   wall   screen   face   scene
+```
+
+```
+[FOCUS: object]  ->  "Describe the object the person is holding."
+```
+
+**Why not let it compose a query?** It did, for four sessions, and failed about
+half the time: wrong subject carried over from an earlier turn, question form
+(*"What object is..."* returns EMPTY from a captioning model), analytic verb
+(*"Determine the location..."* returns EMPTY), florid phrasing (*"with high
+magnification and scrutiny"*). Three rounds of better instruction each produced
+a new way to compose it badly.
+
+**The camera describes; it does not answer.** Every fixed query uses a verb
+measured to work — DESCRIBE, EXAMINE, COUNT, READ. None uses DETERMINE,
+IDENTIFY, or a question form.
+
+Aliases (`hand` → `hands`, `finger` → `count`, `sticker` → `wall`) catch
+near-misses. An unrecognised subject is announced rather than silently passed
+through as a literal query:
+
+    🎯 subject field "hand" -> alias for "hands" -> fixed query
+    🎯 ⚠ UNKNOWN SUBJECT "bicycle" — not in the query library.
+
+**To add a capability, add a subject. Never reopen composition.**
+
+### Reading enforcement
+
+When a measurement returns a short value, the reply must be the bracketed value
+and nothing else. This is verified in code — the one check in the system that
+needs no interpretation:
+
+```
+⚠ READING: reading-mismatch — instrument said "1", entity said "2"
+⚠ READING: reading-overlong — 158 chars against an expected 1
+```
+
+Marked, never rewritten. A silently corrected reading would hide the one fault
+the operator most needs to see.
+
+### Grounding
+
+Every response is checked against the sensory data that informed it, and
+classified three ways:
+
+```
+GROUNDED    present in the source
+SELF-LEAK   absent from the source, present in the identity block
+INVENTED    present in neither
+```
+
+The distinction matters because they have different causes. Given the result
+`4`, an entity once reported *"a ring, with a subtle glint suggesting metal."*
+`glint` and `metal` were invented. **`ring` was self-leak** — the most available
+noun in its own identity block, recalled from the wrong section rather than
+made up. Different diagnosis, different fix.
+
+Attributes are checked separately and unconditionally. You can deduce that a
+thing in someone's hand is a remote control; **you cannot deduce that it is
+blue, or glowing, or brushed metal.** Either the instrument said so or it did
+not.
+
+Marked speculation is exempt. An entity may wonder aloud — that is not a claim
+about the world. Asserting is not wondering.
+
+### The reality filter
+
+Perceptions older than `PERCEPTION_SHELF_LIFE_MS` (default 120s) are **gated
+out of recall entirely** — not merely down-weighted. They remain in the ring
+and in the record; they are simply not recalled as current.
+
+This is Schnider's orbitofrontal reality filtering. The observed failure was not
+a false memory but a TRUE one that had stopped applying: the entity described a
+remote control the operator had put down. **A recent measurement of the wrong
+thing is worse than nothing**, because nothing triggers a fresh look.
+
+    ⏱ REALITY FILTER: 2 stale perception(s) gated from recall
+
+Gate, not weight — a score penalty can be overcome by token overlap, and
+overlap is exactly what a stale perception has.
+
+### The efference copy
+
+The client's own re-prompts are recognised as the system talking to itself:
+
+    🔎 FOVEA CHECK: system-generated turn (efference copy) -> not gating
+
+**A system that cannot tell its own output from its input will loop.** The same
+mechanism appears three times in this codebase: gait suppression subtracting
+commanded motion from visual change, the SELF/RECORD/WORLD prompt regions, and
+this.
+
+### SELF / RECORD / WORLD
+
+The prompt is divided explicitly, because it was one flat text and the model
+drew from all of it:
+
+```
+SELF     who you are. Never report anything here as a perception.
+RECORD   things that HAPPENED. A memory of seeing is not seeing.
+WORLD    what your instruments report RIGHT NOW. If it is not here,
+         you did not see it.
+```
+
+### No perception cache
+
+Every detail question triggers a fresh look. An earlier version reused a recent
+measurement when a classifier judged it relevant. **That was not a cache — it
+was a second memory**, with different rules from the ring's, and the two
+disagreed.
+
+When the vision-call rate matters on battery power: **reduce the rate, do not
+reintroduce the cache.** A fovea that looks once per question is correct. A
+fovea that looks and then remembers is a second memory with different rules.
+
+
 ## VII. THE FORGE
 
 Navigate to `http://[YOUR_SERVER_IP]:3141/forge.html` in your browser.
@@ -686,6 +850,18 @@ becomes a sensory organ; it captures images and transmits them to the server
 for interpretation. The entity perceives and remembers.
 
 The Pi is the eye. The server is the brain. No AI runs on the Pi.
+
+**v3.4.0:** the eye now fires on *evidence*, not on a timer. A 64x48 raw probe
+is differenced each cycle; the full capture and the vision call happen only when
+something moved. The threshold is learned from the room's own noise floor, so
+the same sensor works on a shelf and on a moving body. Every perception carries
+`trigger` — `change`, `heartbeat`, or `first frame` — because a frame that fired
+on a timer is not evidence of anything, and the fusion layer needs to know.
+
+If the eye is mounted on something that walks, set `GAIT_ENABLED=true`. The
+gait controller's own command is the efference copy: it predicts how much field
+the body is about to sweep, and the filter raises its bar by exactly that.
+Without it, roughly two thirds of what a walking body remembers is itself.
 
 ### HARDWARE
 
@@ -816,6 +992,39 @@ that speaks HTTP. The soul has a REST interface.
 
 ## XI. COMPLETE .ENV REFERENCE
 
+> **v3.4.0 additions.** The sensory constants below are *starting estimates*,
+> not tuned values. They depend on lens, framerate, lighting and distance.
+> Everything that can learn its own value does — the delta threshold and the
+> gait yaw gain both calibrate themselves in use.
+>
+> ```
+> # --- REMOTE EYE (sensors/sensor.js) ---
+> DELTA_ENABLED=true       # false restores timer-only firing
+> DELTA_PIXEL=35           # per-cell luminance change counted as movement
+> DELTA_FACTOR=4.0         # multiple of the LEARNED noise floor
+> DELTA_FLOOR_MIN=0.01     # absolute floor
+> DELTA_CEILING=0.25       # absolute cap
+> DELTA_GRID=32            # NxN detection grid
+> PROBE_WIDTH=64           # raw probe resolution
+> PROBE_HEIGHT=48
+> CALIBRATE_FRAMES=8       # frames before the filter starts judging
+> HEARTBEAT_EVERY=40       # fire anyway after this many skipped cycles
+>
+> # --- PERCEPTION SHELF LIFE (core/mind.js) ---
+> # How long a perception stays reachable by recall. Past this it is gated out
+> # entirely — still in the ring, still in the record, just not recalled as
+> # though it described NOW. Lower it if the entity reaches for stale views;
+> # raise it if it forgets something it should still have in view.
+> PERCEPTION_SHELF_LIFE_MS=120000
+>
+> # --- BODY (sensors/gait.js) — only if the eye is on something that walks ---
+> GAIT_ENABLED=false
+> GAIT_CYCLE_MS=1200
+> GAIT_STRIDE_M=0.06
+> GAIT_YAW_PER_CYCLE=0.35
+> ```
+
+
 ```ini
 # === CORE ===
 NODE_MODE=core
@@ -852,7 +1061,213 @@ the entity won't know about capabilities that aren't wired in.
 
 ---
 
+---
+
+## XI-B. WHAT HAS ACTUALLY BEEN RUN
+
+Some of this system has run for days against a real model on real hardware.
+Some has only ever been exercised by tests. **Both are shipped; only one is
+proven, and you should know which is which before you rely on it.**
+
+### Verified on hardware
+
+Run against an 8B llama with moondream vision, across multiple days, sessions,
+restarts, and 390+ memories.
+
+```
+the ring itself         storage, retrieval, prompt assembly, cross-session
+                        continuity.
+reconsolidation         memories erode toward gist as they are used
+dream cycle             fires unattended on idle; consolidates; retires
+                        fragments; records what it consumed
+demoted vs neglected    ambient snapshots kept out of consolidation
+                        (measured: 240 neglected / 109 demoted on a live ring)
+the fovea gate          gates on detail questions, defers on system turns
+fixed subject queries   entity emits a word, server resolves it
+reading enforcement     caught a real mismatch: instrument "1", entity "2"
+grounding               caught invented attributes, colours, fabricated text
+reality filter          stale perceptions gated from recall
+dual transport          Ollama native and OpenAI-compatible both exercised
+fresh clone             boots, creates storage, first write succeeds
+remote eye              sensor.js deployed and run on a Pi Zero W (ARMv6,
+                        Debian 13, grafted Node, rpicam-apps). Captures,
+                        transmits, and the entity forms a memory from it.
+                        The v3.4.0 delta-filter additions to that file are a
+                        separate matter, see below.
+```
+
+### Built and tested, but never run
+
+```
+sensors/sensor.js       ONLY THE v3.4.0 ADDITIONS are unproven — the delta
+                        filter and adaptive threshold, verified against
+                        generated frames but not yet against a real lens.
+                        THE REMOTE EYE ITSELF HAS RUN ON A PI ZERO W: see the
+                        deployment procedure in section IX.
+sensors/gait.js         efference copy for a legged body. Verified against a
+                        simulated walk cycle. NEVER DRIVEN A SERVO.
+core/sensoryBus.js      cross-modal fusion and corroboration. Verified with
+                        synthetic multi-channel input. HAS ONLY EVER SEEN ONE
+                        CHANNEL in production, so agreement scoring, retroactive
+                        promotion, and the confidence gradient are unexercised.
+core/sampling.js        multi-sample voting on vision. Verified against a stub.
+                        DORMANT — defaults to one sample; nothing calls it with
+                        more.
+Gait.reconcile(imu)     detects being picked up by comparing commanded motion
+                        against measured. WRITTEN, NEVER EXERCISED.
+```
+
+### Constants that are guesses
+
+Every one of these is a starting estimate, not a tuned value. They depend on
+lens, framerate, lighting, distance, and the room.
+
+```
+DELTA_FACTOR  DELTA_CEILING  CALIBRATE_FRAMES  HEARTBEAT_EVERY
+PERCEPTION_SHELF_LIFE_MS      AGREEMENT_MS      CHANNEL_LAG
+```
+
+The confidence table in `sensoryBus.js` came from **synthetic ground truth, not
+from a room.** Right shape, probably wrong values.
+
+Two things calibrate themselves in use rather than trusting a constant: the
+delta filter's noise floor, and the gait's yaw gain.
+
+### Known limits
+
+```
+counting        moondream identifies objects reliably and CANNOT COUNT.
+                Survived a resolution change and a prompt change. The entity is
+                told to report counts as low-confidence.
+gist invention  gist verification catches loss, alteration and resequencing.
+                It cannot catch INVENTION — a gist that keeps every figure and
+                adds a claim will pass.
+dream checks    the dream engine is the only write path with no checks applied
+                to its output. Whether it should have any is an open question:
+                a dream should be strange, and a surreal image is not a breach.
+```
+
 ## XII. CHANGELOG
+
+### v3.4.0 — The Turtle Shell Update
+
+Memories now erode as they are used and record
+what they replaced. Perceptions carry where they came from and how much
+corroborates them. A body knows which motion was its own.
+
+**MEMORY:**
+- **Reconsolidation on recall.** Retrieval was a pure read; the 200-char gist
+  was computed for the prompt and thrown away. Non-core memories now shed detail
+  toward gist as they are used. `isIdentity` never erodes — a seed compression
+  must not drift into its own chat log. Converges: once at the floor, further
+  recalls are no-ops.
+- **Gist extraction, not truncation.** Keeps the *tail* (the payload), not the
+  setup — blind truncation preserved `User asked: "..."` and destroyed the
+  answer. Money, dates, times, identifiers and multi-word names are extracted
+  span-aware and preserved regardless of position.
+- **Consolidation on dream.** Fragments the dream consumes are retired from the
+  orphan pool and eroded toward gist. The dream records `sources: [ids]`.
+- **Abstractive gists.** The dream already calls the model, so it makes one
+  further call and writes true summaries for what it consumed — abstraction at
+  one request per dream rather than one per recall. Verified three ways before
+  acceptance: nothing may go missing, nothing may be *altered*, and nothing may
+  be **resequenced** (a gist that keeps every figure but rearranges them still
+  scans, and has silently made the takings into the rent). Any failure falls
+  through to the extractive knife, which therefore stays permanent.
+- **`gistSource`** records the length and hash of what a gist replaced, so the
+  claim can be audited rather than believed.
+- **Utterance provenance.** Every memory carries `origin`: which transport,
+  which endpoint, which model, latency, whether the call completed. A reply's
+  *shape* can be forged; the transaction record cannot. Any memory from a
+  failed, incomplete or missing call is tagged `suspect` at **write time** —
+  after the fact the bytes are identical and no examination can separate them.
+
+**SENSORY:**
+- **The remote eye stops being a metronome.** `sensor.js` had no change
+  detection: it fired every 30s regardless and paid for a vision call each time.
+  A channel that fires on a timer coincides with everything, so any confidence
+  estimate built on it is meaningless. Detection now runs on a 64x48 **raw**
+  probe — JPEG is a compressed stream and two frames of the same still room
+  differ by ~30% at byte level. The full capture happens only on a fire.
+- **Adaptive threshold.** `retina.js` uses 0.15, correct for a face at webcam
+  distance; a person crossing a room occupies ~5% of frame and is missed
+  entirely. The filter now learns its own noise floor and fires at a multiple of
+  it, so it survives being carried to another room.
+- **Efference copy (`sensors/gait.js`).** A walking body without a self-channel
+  records ~69% of its memories about its own motion. The fix is not an IMU: a
+  legged machine already knows what it **commanded** its legs to do, and that
+  copy is available *before* the camera sees the consequence. The filter raises
+  its threshold by the predicted field displacement — subtraction of a
+  prediction, not a tolerance window. The yaw gain is **learned**, since it
+  depends on lens, framerate and distance.
+- **Cross-modal fusion (`core/sensoryBus.js`).** Sensors post independently, so
+  only the server sees all channels. Channels with independent geometry fail
+  independently: one channel firing gives P(real) ~0.10, three agreeing ~0.90.
+  `importance` now comes from the coincidence count instead of a flat 1.2.
+  Latency is **corrected**, not tolerated — a tolerance window doubles every
+  channel's noise exposure and made fusion worse than the best single channel.
+  Heartbeat frames are admitted but can never corroborate.
+- **Retroactive promotion.** The first channel to report cannot know it will be
+  confirmed. Later corroboration now reaches back and raises the earlier trace.
+- **Demoted is not neglected.** The dream samples orphans by design, and
+  reafferent frames enter at floor importance and therefore *become* orphans —
+  so consolidation would preferentially dream about the robot turning around.
+  Measured on a walking-robot ring: 88% of dreamed material was self-motion or
+  timer frames. Now separated; demoted material enters at a trickle, one
+  fragment per dream, only once genuine orphans are exhausted.
+
+**PERCEPTION DISCIPLINE** — see section VI-B for the full account. Summary of
+what changed after the initial v3.4.0 work, all of it driven by logged
+failures on real hardware rather than by design:
+
+- **The fovea gate.** A question needing visual detail is now detected in code.
+  Where the feed cannot answer it, the feed says so and demands a focus instead
+  of offering a scene to elaborate on. The ACTIVE INVESTIGATION *instruction*
+  existed before and was ignored twice in one session; the gate is not ignored.
+- **Fixed subject queries.** The entity emits `[FOCUS: object]`; the server
+  holds the query text. Composed queries failed about half the time across four
+  sessions — wrong subject, question form, analytic verb, florid phrasing — and
+  three rounds of better instruction each produced a new failure mode. Aliases
+  catch near-misses; unknown subjects are announced.
+- **Reading enforcement.** A bracketed value is verified against what the
+  instrument recorded. Caught a live mismatch where moondream said `1` and the
+  entity said `2`.
+- **Grounding.** Responses are checked against their sensory source and
+  classified grounded / self-leak / invented, with attributes checked
+  separately because an attribute cannot be deduced. Marked speculation is
+  exempt — an entity may wonder aloud.
+- **The reality filter.** Perceptions past a shelf life are gated out of recall
+  entirely. Fixes a true-but-stale memory being reported as current.
+- **SELF / RECORD / WORLD.** The prompt is explicitly divided. It was one flat
+  text, and the model drew from all of it.
+- **The efference copy.** System-generated turns are recognised as the system's
+  own output. A system that cannot tell its output from its input will loop.
+- **No perception cache.** Every detail question triggers a fresh look. The
+  reuse it replaced was not a cache but a second memory with different rules
+  from the ring's, and the two disagreed.
+
+**WHAT HAS ACTUALLY BEEN RUN** — new section XI-B distinguishes what has been
+exercised against real hardware from what has only been tested.
+
+**FIXES:**
+- `LLM_PROVIDER` now selects the transport. **Path B (cloud) previously could
+  not work**: the adapter stripped `/v1`, called Ollama's `/api/chat`, and sent
+  no `Authorization` header — then failed as `success: true` with an ellipsis.
+  OpenAI-compatible endpoints now get `/v1/chat/completions` with a bearer
+  token, and a 401 is logged rather than swallowed.
+- Biased shuffle in the dream sampler (`0.5 - Math.random()`) corrected.
+
+**KNOWN LIMITS:**
+- Gist verification catches loss, alteration and resequencing. It cannot catch
+  **invention** — a gist that keeps every figure and adds a claim will pass.
+  That needs entailment checking, which needs a second model.
+- Every sensory constant is a starting estimate and wants field calibration.
+  The confidence table in `sensoryBus.js` came from synthetic ground truth, not
+  from a room: right shape, probably wrong values.
+- `Gait.reconcile(imu)` is written and **unexercised**. Where commanded and
+  measured motion disagree, the body is being moved by something other than
+  itself — a robot that can detect being picked up. Untested without hardware.
+
 
 ### v3.3.2 — The Sensory Update
 
@@ -1089,6 +1504,32 @@ functionality preserved; drop-in replacement for v3.3.0 chat.html.
 - **Vision on Small Models (moondream):** The `moondream` vision model (~1.7B
   parameters) produces simpler visual descriptions compared to `llava:7b`. The
   adaptive retina system automatically adjusts prompt complexity to match.
+- **Vision models answer DESCRIPTIONS, not QUESTIONS.** Measured across two
+  sessions against moondream, and the reason the foveal queries are fixed
+  constants rather than composed by the entity:
+
+  ```
+  "Count the fingers being held up."                 answered
+  "Examine the hand holding the pen."                answered
+  "Describe the object the person is holding."       answered
+
+  "What object is the person holding?"               EMPTY
+  "Identify the location of the person's hand."      EMPTY
+  "Determine the location of the individual's hand." EMPTY
+  ```
+
+  Both forms in the second group are grammatical and clear. The difference is
+  the verb class: *describe*, *examine*, *count* and *read* are perceptual;
+  *determine* and *identify* are analytic, and a captioning model returns
+  nothing to them. A question form returns nothing regardless.
+
+  If you add a subject to `core/queries.js`, phrase it as an instruction to
+  describe something. An empty return is now announced in the log rather than
+  passing silently:
+
+  ```
+  🔍 ⚠ VISION RETURNED NOTHING for: "..."
+  ```
 - **Vision on Turing GPUs (RTX 20-series):** The `llava:7b` vision model may
   crash with "model runner has unexpectedly stopped" on Turing-architecture GPUs.
   Use `moondream` as a workaround. See Research Findings in v3.3.2 changelog.

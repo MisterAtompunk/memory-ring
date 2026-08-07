@@ -32,16 +32,31 @@ const PROFILES = {
 
 const SELECTED_PROFILE = PROFILES[MODE] || PROFILES.core;
 
+// --- SINGLE SOURCE OF VERSION ---
+// Six literals across three files had drifted to four different versions, and
+// index.html disagreed with its own title. A release should not require
+// remembering where the number is written. It is written once, here, read from
+// package.json, and served at /api/version for the front end.
+const pkg = require('./package.json');
+const VERSION  = pkg.version;
+const CODENAME = 'The Turtle Shell Update';
+
 module.exports = {
+    version: VERSION,
+    codename: CODENAME,
     ...SELECTED_PROFILE,
     paths: {
         data: process.env.DATA_PATH || './data',
         identities: process.env.DATA_PATH ? `${process.env.DATA_PATH}/identities` : './data/identities'
     },
     llm: {
-        // We use the OpenAI Client to talk to Ollama
-        provider: 'ollama', 
-        apiKey: 'ollama', 
+        // PATH A (sovereign): Ollama on your own hardware. Native /api/chat,
+        //   which exposes sampling parameters the OpenAI schema does not.
+        // PATH B (cloud): any OpenAI-compatible endpoint. /v1/chat/completions
+        //   with a bearer token.
+        // Selected by LLM_PROVIDER, or inferred from the base URL when unset.
+        provider: process.env.LLM_PROVIDER || null,
+        apiKey: process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || null,
         model: process.env.LLM_MODEL || 'llama3',
         baseUrl: process.env.LLM_BASE_URL || 'http://127.0.0.1:11434/v1'
     },
