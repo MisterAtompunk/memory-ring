@@ -12,11 +12,16 @@ const sanitizeId = (id) => {
 
 class Storage {
     async init() {
-        try {
-            await fs.mkdir(config.paths.identities, { recursive: true });
-        } catch (e) {
-            console.error('Storage Init Error:', e.message);
-        }
+        // Throw, do not log-and-continue. Swallowing this is what allowed a
+        // fresh clone to run for the whole of a session while silently failing
+        // every write. The caller decides what a storage failure means; this
+        // function's job is to report it truthfully.
+        await fs.mkdir(config.paths.identities, { recursive: true });
+        // Prove it: mkdir can succeed on a read-only mount in some setups.
+        const probe = path.join(config.paths.identities, '.writable');
+        await fs.writeFile(probe, '');
+        await fs.unlink(probe);
+        return config.paths.identities;
     }
 
     async loadIdentity(id) {
